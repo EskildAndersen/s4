@@ -26,14 +26,15 @@ def multiple_axis_slice(x, L):
     # TODO I don't see a way to do this programmatically in Pytorch without sacrificing speed so...
     assert len(L) > 0
     if len(L) == 1:
-        return x[..., :L[0]]
+        return x[..., : L[0]]
     elif len(L) == 2:
-        return x[..., :L[0], :L[1]]
+        return x[..., : L[0], : L[1]]
     elif len(L) == 3:
-        return x[..., :L[0], :L[1], :L[2]]
+        return x[..., : L[0], : L[1], : L[2]]
     elif len(L) == 4:
-        return x[..., :L[0], :L[1], :L[2], :L[3]]
-    else: raise NotImplementedError("lol")
+        return x[..., : L[0], : L[1], : L[2], : L[3]]
+    else:
+        raise NotImplementedError("lol")
 
 
 class S4ND(SequenceModule):
@@ -43,28 +44,29 @@ class S4ND(SequenceModule):
         self,
         d_model,
         d_state=64,
-        l_max=None, # Maximum length of sequence (list or tuple). None for unbounded
-        dim=2, # Dimension of data, e.g. 2 for images and 3 for video
-        out_channels=None, # Do depthwise-separable or not
-        channels=1, # maps 1-dim to C-dim
+        l_max=None,  # Maximum length of sequence (list or tuple). None for unbounded
+        dim=2,  # Dimension of data, e.g. 2 for images and 3 for video
+        out_channels=None,  # Do depthwise-separable or not
+        channels=1,  # maps 1-dim to C-dim
         bidirectional=True,
         # Arguments for FF
-        activation='gelu', # activation in between SS and FF
-        ln=False, # Extra normalization
-        final_act=None, # activation after FF
-        initializer=None, # initializer on FF
-        weight_norm=False, # weight normalization on FF
-        hyper_act=None, # Use a "hypernetwork" multiplication
-        dropout=0.0, tie_dropout=False,
-        transposed=True, # axis ordering (B, L, D) or (B, D, L)
+        activation="gelu",  # activation in between SS and FF
+        ln=False,  # Extra normalization
+        final_act=None,  # activation after FF
+        initializer=None,  # initializer on FF
+        weight_norm=False,  # weight normalization on FF
+        hyper_act=None,  # Use a "hypernetwork" multiplication
+        dropout=0.0,
+        tie_dropout=False,
+        transposed=True,  # axis ordering (B, L, D) or (B, D, L)
         verbose=False,
-        trank=1, # tensor rank of C projection tensor
+        trank=1,  # tensor rank of C projection tensor
         linear=True,
         return_state=True,
         contract_version=0,
         # SSM Kernel arguments
         kernel=None,  # New option
-        mode='dplr',  # Old option
+        mode="dplr",  # Old option
         **kernel_args,
     ):
         """
@@ -81,6 +83,7 @@ class S4ND(SequenceModule):
         super().__init__()
         if verbose:
             import src.utils.train
+
             log = src.utils.train.get_logger(__name__)
             log.info(f"Constructing S4ND (H, N, L) = ({d_model}, {d_state}, {l_max})")
 
@@ -97,7 +100,9 @@ class S4ND(SequenceModule):
         self.verbose = verbose
         self.kernel_args = kernel_args
 
-        self.D = nn.Parameter(torch.randn(self.channels, self.h)) # TODO if self.out_channels
+        self.D = nn.Parameter(
+            torch.randn(self.channels, self.h)
+        )  # TODO if self.out_channels
 
         self.trank = trank
 
@@ -110,7 +115,7 @@ class S4ND(SequenceModule):
             # # channels *= out_channels
             # self.in_channels = d_model
             # channels *= d_model
-            assert self.linear # TODO change name of linear_output
+            assert self.linear  # TODO change name of linear_output
 
         channels *= self.trank
 
@@ -131,24 +136,36 @@ class S4ND(SequenceModule):
             self.l_max = l_max
 
         # SSM Kernel
-        if kernel is None and mode is not None: kernel = mode
+        if kernel is None and mode is not None:
+            kernel = mode
         self._kernel_channels = channels
-        self.kernel = nn.ModuleList([
-            # SSKernel(self.h, N=self.n, L=L, channels=channels, verbose=verbose, **kernel_args)
-            kernel_registry[kernel](d_model=self.h, d_state=self.n, l_max=L, channels=channels, verbose=verbose, **kernel_args)
-            for L in self.l_max
-        ])
+        self.kernel = nn.ModuleList(
+            [
+                # SSKernel(self.h, N=self.n, L=L, channels=channels, verbose=verbose, **kernel_args)
+                kernel_registry[kernel](
+                    d_model=self.h,
+                    d_state=self.n,
+                    l_max=L,
+                    channels=channels,
+                    verbose=verbose,
+                    **kernel_args,
+                )
+                for L in self.l_max
+            ]
+        )
 
         if not self.linear:
-
             self.activation = Activation(activation)
-            dropout_fn = partial(DropoutNd, transposed=self.transposed) if tie_dropout else nn.Dropout
+            dropout_fn = (
+                partial(DropoutNd, transposed=self.transposed)
+                if tie_dropout
+                else nn.Dropout
+            )
             self.dropout = dropout_fn(dropout) if dropout > 0.0 else nn.Identity()
-
 
             # position-wise output transform to mix features
             self.output_linear = LinearActivation(
-                self.h*self.channels,
+                self.h * self.channels,
                 self.h,
                 transposed=self.transposed,
                 initializer=initializer,
@@ -160,9 +177,11 @@ class S4ND(SequenceModule):
         ## To handle some operations with unspecified number of dims, we're going to define the einsum/einops contractions programmatically
 
         # Outer product function for the convolution kernel taking arbitary number of dims
-        contract_str = ', '.join([f'... {chr(i+97)}' for i in range(len(self.l_max))]) \
-            + ' -> ... ' \
-            + ' '.join([f'{chr(i+97)}' for i in range(len(self.l_max))])
+        contract_str = (
+            ", ".join([f"... {chr(i+97)}" for i in range(len(self.l_max))])
+            + " -> ... "
+            + " ".join([f"{chr(i+97)}" for i in range(len(self.l_max))])
+        )
         # self.nd_outer = oe.contract_expression(
         #     contract_str,
         #     *[(channels*self.trank, self.h, 2*l) for l in l_max]
@@ -179,34 +198,38 @@ class S4ND(SequenceModule):
         # self.nd_slice_args = { f"f{i}": 2 for i in range(len(l_max)) }
 
     def _reinit(self, dt_min=None, dt_max=None, normalize=False, **kwargs):
-        """ Sets time kernel to custom value """
+        """Sets time kernel to custom value"""
         assert len(self.l_max) == 3
         L = self.l_max[-3]
         # init = init or 'fourier'
-        dt_min = dt_min or 2./L
-        dt_max = dt_max or 2./L
+        dt_min = dt_min or 2.0 / L
+        dt_max = dt_max or 2.0 / L
         print(f"S4ND reinit args: {dt_min=} {dt_max=}", kwargs)
         kernel_args = {
-            **self.kernel_args, **{
-                'H': self.h,
-                'N': self.n,
-                'L': L,
+            **self.kernel_args,
+            **{
+                "H": self.h,
+                "N": self.n,
+                "L": L,
                 # 'init': init,
-                'dt_min': dt_min,
-                'dt_max': dt_max,
+                "dt_min": dt_min,
+                "dt_max": dt_max,
                 # 'deterministic': True,
-                'channels': self._kernel_channels,
+                "channels": self._kernel_channels,
                 **kwargs,
-            }
+            },
         }
         time_kernel = SSKernel(**kernel_args)
         if normalize:
             with torch.no_grad():
-                time_kernel.kernel.C /= (0.5 * time_kernel.kernel.log_dt.exp()[:, None, None])
+                time_kernel.kernel.C /= (
+                    0.5 * time_kernel.kernel.log_dt.exp()[:, None, None]
+                )
         self.kernel[-3] = time_kernel
 
-
-    def forward(self, u, rate=1.0, state=None, **kwargs): # absorbs return_output and transformer src mask
+    def forward(
+        self, u, rate=1.0, state=None, **kwargs
+    ):  # absorbs return_output and transformer src mask
         """
         u: (B H L) if self.transposed else (B L H)
         state: (H N) never needed unless you know what you're doing
@@ -230,15 +253,16 @@ class S4ND(SequenceModule):
         L_input = u.shape[2:]
 
         L_kernel = [
-            l_i if l_k is None else min(l_i, round(l_k / rate)) for l_i, l_k in zip(L_input, self.l_max)
+            l_i if l_k is None else min(l_i, round(l_k / rate))
+            for l_i, l_k in zip(L_input, self.l_max)
         ]
 
         # Compute SS Kernel
         # 1 kernel for each axis in L
         k = [kernel(L=l, rate=rate)[0] for kernel, l in zip(self.kernel, L_kernel)]
 
-        if self.bidirectional: # halves channels
-            k = [torch.chunk(_k, 2, dim=-3) for _k in k] # (C H L)
+        if self.bidirectional:  # halves channels
+            k = [torch.chunk(_k, 2, dim=-3) for _k in k]  # (C H L)
             k = [
                 F.pad(k0, (0, l)) + F.pad(k1.flip(-1), (l, 0))
                 # for l, (k0, k1) in zip(L_kernel, k) # TODO bug??
@@ -252,34 +276,51 @@ class S4ND(SequenceModule):
             k.dtype = torch.float32
 
         L_padded = [l_input + l_kernel for l_input, l_kernel in zip(L_input, L_kernel)]
-        u_f = torch.fft.rfftn(u, s=tuple([l for l in L_padded])) # (B H L)
-        k_f = [torch.fft.fft(_k, n=l) for _k, l in zip(k[:-1], L_padded[:-1])] + [torch.fft.rfft(k[-1], n=L_padded[-1])] # (C H L)
+        u_f = torch.fft.rfftn(u, s=tuple([l for l in L_padded]))  # (B H L)
+        k_f = [torch.fft.fft(_k, n=l) for _k, l in zip(k[:-1], L_padded[:-1])] + [
+            torch.fft.rfft(k[-1], n=L_padded[-1])
+        ]  # (C H L)
 
         # Take outer products
 
-        if self.contract_version == 0: # TODO set this automatically if l_max is provided
-            k_f = contract('... c h m, ... c h n -> ... c h m n', k_f[0], k_f[1]) # (H L1 L2) # 2D case of next line
+        if (
+            self.contract_version == 0
+        ):  # TODO set this automatically if l_max is provided
+            k_f = contract(
+                "... c h m, ... c h n -> ... c h m n", k_f[0], k_f[1]
+            )  # (H L1 L2) # 2D case of next line
             # k_f = self.nd_outer(*k_f)
             # sum over tensor rank
-            k_f = reduce(k_f, '(r c) h ... -> c h ...', 'sum', r=self.trank) / self.trank # reduce_mean not available for complex... # TODO does it matter if (r c) or (c r)?
-            y_f = contract('bh...,ch...->bch...', u_f, k_f) # k_f.unsqueeze(-4) * u_f.unsqueeze(-3) # (B C H L)
+            k_f = (
+                reduce(k_f, "(r c) h ... -> c h ...", "sum", r=self.trank) / self.trank
+            )  # reduce_mean not available for complex... # TODO does it matter if (r c) or (c r)?
+            y_f = contract(
+                "bh...,ch...->bch...", u_f, k_f
+            )  # k_f.unsqueeze(-4) * u_f.unsqueeze(-3) # (B C H L)
 
         else:
-            contract_str_l = [f'{chr(i+100)}' for i in range(len(L_input))]
-            contract_str = 'b ... ' + ' '.join(contract_str_l) + ', ' \
-                + ', '.join(['... ' + l for l in contract_str_l]) \
-                + ' -> b ... ' \
-                + ' '.join(contract_str_l)
+            contract_str_l = [f"{chr(i+100)}" for i in range(len(L_input))]
+            contract_str = (
+                "b ... "
+                + " ".join(contract_str_l)
+                + ", "
+                + ", ".join(["... " + l for l in contract_str_l])
+                + " -> b ... "
+                + " ".join(contract_str_l)
+            )
             y_f = contract(contract_str, u_f, *k_f)
-            k_f = reduce(y_f, 'b (r c) h ... -> b c h ...', 'sum', r=self.trank) / self.trank # reduce_mean not available for complex... # TODO does it matter if (r c) or (c r)?
+            k_f = (
+                reduce(y_f, "b (r c) h ... -> b c h ...", "sum", r=self.trank)
+                / self.trank
+            )  # reduce_mean not available for complex... # TODO does it matter if (r c) or (c r)?
 
         # Contract over channels if not depthwise separable
         if self.out_channels is not None:
-            y_f = reduce(y_f, 'b (i c) h ... -> b c i ...', 'sum', i=self.out_channels) # TODO normalization might not be right
-
+            y_f = reduce(
+                y_f, "b (i c) h ... -> b c i ...", "sum", i=self.out_channels
+            )  # TODO normalization might not be right
 
         y = torch.fft.irfftn(y_f, s=tuple([l for l in L_padded]))
-
 
         # need to cast back to half if used
         if half_precision:
@@ -294,11 +335,13 @@ class S4ND(SequenceModule):
         # Compute D term in state space equation - essentially a skip connection
         # B, C, H, L (not flat)
         if not self.out_channels:
-            y = y + contract('bh...,ch->bch...', u, self.D) # u.unsqueeze(-3) * self.D.unsqueeze(-1)
+            y = y + contract(
+                "bh...,ch->bch...", u, self.D
+            )  # u.unsqueeze(-3) * self.D.unsqueeze(-1)
 
         # Reshape to flatten channels
         # B, H, L (not flat)
-        y = rearrange(y, 'b c h ... -> b (c h) ...')
+        y = rearrange(y, "b c h ... -> b (c h) ...")
 
         if not self.linear:
             y = self.dropout(self.activation(y))
@@ -315,7 +358,8 @@ class S4ND(SequenceModule):
 
         if self.return_state:
             return y, None
-        else: return y
+        else:
+            return y
 
     def default_state(self, *batch_shape, device=None):
         return self._initial_state.repeat(*batch_shape, 1, 1)

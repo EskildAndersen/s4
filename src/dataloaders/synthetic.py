@@ -23,7 +23,7 @@ class Copying(SequenceDataset):
             "variable_length": False,  # Randomize number of tokens to memorize
             "one_hot": False,
             "reverse": False,
-            "static": False, # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
+            "static": False,  # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
             "n_train": 10000,
             "n_eval": 1000,
         }
@@ -43,8 +43,10 @@ class Copying(SequenceDataset):
     def setup(self):
         from .datasets.copying import CopyingEvalDataset, CopyingTrainDataset
 
-        if self.static: train_cls = CopyingEvalDataset
-        else: train_cls = CopyingTrainDataset
+        if self.static:
+            train_cls = CopyingEvalDataset
+        else:
+            train_cls = CopyingTrainDataset
 
         self.dataset_train = train_cls(
             self.l_noise,
@@ -67,7 +69,6 @@ class Copying(SequenceDataset):
             reverse=self.reverse,
         )
         self.dataset_test = None
-
 
     def __str__(self):
         return f"{self._name_}{self.l_noise}{'v' if self.variable else ''}"
@@ -104,12 +105,12 @@ class Reconstruct(SequenceDataset):
     @property
     def init_defaults(self):
         return {
-            "l_seq": 1024, # length of total sequence
+            "l_seq": 1024,  # length of total sequence
             "l_mem": 512,  # length to reconstruct
             "dt": 0.001,
             "freq": 1.0,
             "seed": 0,
-            "static": False, # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
+            "static": False,  # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
             "n_train": 10000,
             "n_eval": 1000,
         }
@@ -127,10 +128,15 @@ class Reconstruct(SequenceDataset):
         return 0
 
     def setup(self):
-        from .datasets.reconstruct import ReconstructEvalDataset, ReconstructTrainDataset
+        from .datasets.reconstruct import (
+            ReconstructEvalDataset,
+            ReconstructTrainDataset,
+        )
 
-        if self.static: train_cls = ReconstructEvalDataset
-        else: train_cls = ReconstructTrainDataset
+        if self.static:
+            train_cls = ReconstructEvalDataset
+        else:
+            train_cls = ReconstructTrainDataset
 
         self.dataset_train = train_cls(
             samples=self.n_train,
@@ -160,12 +166,12 @@ class Delay(SequenceDataset):
     @property
     def init_defaults(self):
         return {
-            "l_seq": 1024, # length of total sequence
+            "l_seq": 1024,  # length of total sequence
             "n_lag": 1,  # length to reconstruct
             "l_lag": None,  # length to reconstruct
             "dt": 0.001,
             "freq": 100.0,
-            "static": False, # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
+            "static": False,  # Use a static dataset of size n_train, otherwise always use random data with n_train per epoch
             "n_train": 10000,
             "n_eval": 1000,
         }
@@ -186,8 +192,10 @@ class Delay(SequenceDataset):
     def setup(self):
         from .datasets.delay import DelayEvalDataset, DelayTrainDataset
 
-        if self.static: train_cls = DelayEvalDataset
-        else: train_cls = DelayTrainDataset
+        if self.static:
+            train_cls = DelayEvalDataset
+        else:
+            train_cls = DelayTrainDataset
 
         self.dataset_train = train_cls(
             samples=self.n_train,
@@ -207,9 +215,9 @@ class Delay(SequenceDataset):
         )
         self.dataset_test = None
 
-
     def __str__(self):
         return f"{self._name_}{self.l_noise}{'v' if self.variable else ''}"
+
 
 class MackeyGlass(SequenceDataset):
     _name_ = "mackey"
@@ -217,7 +225,7 @@ class MackeyGlass(SequenceDataset):
     @property
     def init_defaults(self):
         return {
-            "l_seq": 5000, # length of total sequence
+            "l_seq": 5000,  # length of total sequence
             "l_predict": 15,  # length to reconstruct
             "tau": 17,  # Delay of MG system
             "washout": 100,
@@ -262,7 +270,6 @@ class MackeyGlass(SequenceDataset):
         self.dataset_train = torch.utils.data.TensorDataset(train_X, train_Y)
         self.dataset_val = torch.utils.data.TensorDataset(val_X, val_Y)
         self.dataset_test = None
-
 
     def __str__(self):
         return f"{self._name_}"

@@ -6,7 +6,12 @@ import torchvision
 from einops.layers.torch import Rearrange
 from src.utils import permutations
 
-from src.dataloaders.base import default_data_path, ImageResolutionSequenceDataset, ResolutionSequenceDataset, SequenceDataset
+from src.dataloaders.base import (
+    default_data_path,
+    ImageResolutionSequenceDataset,
+    ResolutionSequenceDataset,
+    SequenceDataset,
+)
 
 
 class MNIST(SequenceDataset):
@@ -133,15 +138,21 @@ class CIFAR10(ImageResolutionSequenceDataset):
         if self.permute == "br":
             permutation = permutations.bitreversal_permutation(img_size * img_size)
             print("bit reversal", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "snake":
             permutation = permutations.snake_permutation(img_size, img_size)
             print("snake", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "hilbert":
             permutation = permutations.hilbert_permutation(img_size)
             print("hilbert", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "transpose":
             permutation = permutations.transpose_permutation(img_size, img_size)
             transform = torchvision.transforms.Lambda(
@@ -150,13 +161,13 @@ class CIFAR10(ImageResolutionSequenceDataset):
             permutations_list.append(transform)
         elif self.permute == "2d":  # h, w, c
             permutation = torchvision.transforms.Lambda(
-                    Rearrange("(h w) c -> h w c", h=img_size, w=img_size)
-                )
+                Rearrange("(h w) c -> h w c", h=img_size, w=img_size)
+            )
             permutations_list.append(permutation)
         elif self.permute == "2d_transpose":  # c, h, w
             permutation = torchvision.transforms.Lambda(
-                    Rearrange("(h w) c -> c h w", h=img_size, w=img_size)
-                )
+                Rearrange("(h w) c -> c h w", h=img_size, w=img_size)
+            )
             permutations_list.append(permutation)
 
         # Augmentation
@@ -196,13 +207,42 @@ class CIFAR10(ImageResolutionSequenceDataset):
 
         if self.rescale:
             print(f"Resizing all images to {img_size} x {img_size}.")
-            self.dataset_train.data = self.dataset_train.data.reshape((self.dataset_train.data.shape[0], 32 // self.rescale, self.rescale, 32 // self.rescale, self.rescale, 3)).max(4).max(2).astype(np.uint8)
-            self.dataset_test.data = self.dataset_test.data.reshape((self.dataset_test.data.shape[0], 32 // self.rescale, self.rescale, 32 // self.rescale, self.rescale, 3)).max(4).max(2).astype(np.uint8)
+            self.dataset_train.data = (
+                self.dataset_train.data.reshape(
+                    (
+                        self.dataset_train.data.shape[0],
+                        32 // self.rescale,
+                        self.rescale,
+                        32 // self.rescale,
+                        self.rescale,
+                        3,
+                    )
+                )
+                .max(4)
+                .max(2)
+                .astype(np.uint8)
+            )
+            self.dataset_test.data = (
+                self.dataset_test.data.reshape(
+                    (
+                        self.dataset_test.data.shape[0],
+                        32 // self.rescale,
+                        self.rescale,
+                        32 // self.rescale,
+                        self.rescale,
+                        3,
+                    )
+                )
+                .max(4)
+                .max(2)
+                .astype(np.uint8)
+            )
 
         self.split_train_val(self.val_split)
 
     def __str__(self):
         return f"{'p' if self.permute else 's'}{self._name_}"
+
 
 class SpeechCommands(ResolutionSequenceDataset):
     _name_ = "sc"
@@ -234,9 +274,10 @@ class SpeechCommands(ResolutionSequenceDataset):
     def L(self):
         return 161 if self.mfcc else self.length
 
-
     def setup(self):
-        self.data_dir = self.data_dir or default_data_path # TODO make same logic as other classes
+        self.data_dir = (
+            self.data_dir or default_data_path
+        )  # TODO make same logic as other classes
 
         from src.dataloaders.datasets.sc import _SpeechCommands
 

@@ -16,7 +16,7 @@ class NpNormalize:
         self.std = np.array(std)
 
     def __call__(self, image: PIL.Image.Image) -> np.ndarray:
-        image = np.asarray(image).astype(np.float32) / 255.
+        image = np.asarray(image).astype(np.float32) / 255.0
         image = (image - self.mean) / self.std
         return image
 
@@ -53,7 +53,7 @@ class Cutout(object):
             x1 = np.clip(x - self.length // 2, 0, w)
             x2 = np.clip(x + self.length // 2, 0, w)
 
-            mask[y1: y2, x1: x2] = 0.
+            mask[y1:y2, x1:x2] = 0.0
 
         mask = torch.from_numpy(mask)
         mask = mask.expand_as(img)
@@ -106,13 +106,13 @@ class Cutout(object):
 
 
 class RandomErasing:
-    def __init__(self, p=0.5, max_attempt=20, sl=0.02, sh=0.4, rl=0.3, rh=1. / 0.3):
+    def __init__(self, p=0.5, max_attempt=20, sl=0.02, sh=0.4, rl=0.3, rh=1.0 / 0.3):
         # https://github.com/hysts/pytorch_image_classification/blob/9ff4248905850c68aa9c09c17914307eb81769e7/configs/augmentations/cifar/random_erasing.yaml
         self.p = 0.5
         self.max_attempt = 20
         self.sl, self.sh = 0.02, 0.4
         self.rl = 0.3
-        self.rh = 1. / 0.3
+        self.rh = 1.0 / 0.3
 
     def __call__(self, image: np.ndarray) -> np.ndarray:
         image = np.asarray(image).copy()

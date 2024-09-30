@@ -14,6 +14,7 @@ import src.utils as utils
 import src.utils.registry as registry
 
 import src.utils.train
+
 log = src.utils.train.get_logger(__name__)
 
 contract = torch.einsum
@@ -42,18 +43,18 @@ class S4Block(SequenceModule):
         self,
         d_model,
         bottleneck=None,
-        activation='gelu',
+        activation="gelu",
         gate=None,
         gate_act=None,
         mult_act=None,
-        final_act='glu',
+        final_act="glu",
         postact=None,
         initializer=None,
         weight_norm=False,
         dropout=0.0,
         tie_dropout=False,
         transposed=True,
-        layer='fftconv',
+        layer="fftconv",
         **layer_args,  # Arguments into inner layer (e.g. FFTConv)
     ):
         super().__init__()
@@ -88,7 +89,7 @@ class S4Block(SequenceModule):
             )
             if self.layer.d_output != self.d_model * gate:
                 self.output_gate = LinearActivation(
-                    self.d_model*self.channels,
+                    self.d_model * self.channels,
                     self.d_model * gate,
                     transposed=False,
                     initializer=initializer,
@@ -103,9 +104,9 @@ class S4Block(SequenceModule):
         # to add an option to swap a different module in
         # self.layer = FFTConv(d_model, transposed=False, dropout=dropout, tie_dropout=tie_dropout, **layer_args)
         layer_cfg = layer_args.copy()
-        layer_cfg['_name_'] = layer
-        layer_cfg['transposed'] = False
-        layer_cfg['dropout'] = dropout
+        layer_cfg["_name_"] = layer
+        layer_cfg["transposed"] = False
+        layer_cfg["dropout"] = dropout
         self.layer = utils.instantiate(registry.layer, layer_cfg, d_model)
 
         # Pointwise operations
@@ -121,13 +122,15 @@ class S4Block(SequenceModule):
         # position-wise output transform to mix features
         if postact is not None:
             assert final_act is None
-            log.warning("Warning: 'postact' option changed to 'final_act' and will be removed in a future version.")
+            log.warning(
+                "Warning: 'postact' option changed to 'final_act' and will be removed in a future version."
+            )
             final_act, postact = postact, final_act
         if final_act is None:
             self.output_linear = nn.Identity()
         else:
             self.output_linear = LinearActivation(
-                self.d_model*gate if gate is not None else self.layer.d_output,
+                self.d_model * gate if gate is not None else self.layer.d_output,
                 self.d_model,
                 transposed=False,
                 initializer=initializer,
@@ -136,16 +139,17 @@ class S4Block(SequenceModule):
                 weight_norm=weight_norm,
             )
 
-
-
-    def forward(self, x, lengths=None, **kwargs): # absorbs return_output and transformer src mask
+    def forward(
+        self, x, lengths=None, **kwargs
+    ):  # absorbs return_output and transformer src mask
         """
         x: (B H L) if self.transposed else (B L H)
         state: (H N) never needed unless you know what you're doing
 
         Returns: same shape as x
         """
-        if self.transposed: x = rearrange(x, 'b d ... -> b ... d')
+        if self.transposed:
+            x = rearrange(x, "b d ... -> b ... d")
         L = x.size(1)
 
         # Mask out padding tokens
@@ -156,8 +160,17 @@ class S4Block(SequenceModule):
             else:
                 lengths = None
         if lengths is not None:
-            assert isinstance(lengths, torch.Tensor) and lengths.ndim == 1 and lengths.size(0) in [1, x.size(0)]
-            mask = torch.where(torch.arange(L, device=lengths.device)[:, None] < lengths[:, None, None], 1., 0.)
+            assert (
+                isinstance(lengths, torch.Tensor)
+                and lengths.ndim == 1
+                and lengths.size(0) in [1, x.size(0)]
+            )
+            mask = torch.where(
+                torch.arange(L, device=lengths.device)[:, None]
+                < lengths[:, None, None],
+                1.0,
+                0.0,
+            )
             x = x * mask
 
         if self.gate is not None:
@@ -176,7 +189,8 @@ class S4Block(SequenceModule):
         y = self.drop(y)
         y = self.output_linear(y)
 
-        if self.transposed: y = rearrange(y, 'b d ... -> b ... d')
+        if self.transposed:
+            y = rearrange(y, "b d ... -> b ... d")
 
         return y, state
 
@@ -195,7 +209,7 @@ class S4Block(SequenceModule):
             v = self.input_gate(x)
         if self.bottleneck is not None:
             x = self.input_linear(x)
-        y, next_state = self.layer.step(x, state) # (B C H)
+        y, next_state = self.layer.step(x, state)  # (B C H)
         y = self.activation(y)
         if self.gate is not None:
             y = self.output_gate(y)

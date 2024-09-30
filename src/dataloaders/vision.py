@@ -9,6 +9,7 @@ import torchvision
 
 from src.dataloaders.base import default_data_path, SequenceDataset
 
+
 class CIFAR100(SequenceDataset):
     _name_ = "cifar100"
     d_output = 100
@@ -78,15 +79,21 @@ class CIFAR100(SequenceDataset):
         if self.permute == "br":
             permutation = permutations.bitreversal_permutation(1024)
             print("bit reversal", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "snake":
             permutation = permutations.snake_permutation(32, 32)
             print("snake", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "hilbert":
             permutation = permutations.hilbert_permutation(32)
             print("hilbert", permutation)
-            permutations_list.append(torchvision.transforms.Lambda(lambda x: x[permutation]))
+            permutations_list.append(
+                torchvision.transforms.Lambda(lambda x: x[permutation])
+            )
         elif self.permute == "transpose":
             permutation = permutations.transpose_permutation(32, 32)
             transform = torchvision.transforms.Lambda(
@@ -95,13 +102,13 @@ class CIFAR100(SequenceDataset):
             permutations_list.append(transform)
         elif self.permute == "2d":  # h, w, c
             permutation = torchvision.transforms.Lambda(
-                    Rearrange("(h w) c -> h w c", h=32, w=32)
-                )
+                Rearrange("(h w) c -> h w c", h=32, w=32)
+            )
             permutations_list.append(permutation)
         elif self.permute == "2d_transpose":  # c, h, w
             permutation = torchvision.transforms.Lambda(
-                    Rearrange("(h w) c -> c h w", h=32, w=32)
-                )
+                Rearrange("(h w) c -> c h w", h=32, w=32)
+            )
             permutations_list.append(permutation)
 
         # Augmentation
@@ -160,6 +167,7 @@ class CIFAR10C(SequenceDataset):
     the accuracy AlexNet gets on the dataset. You can use this spreadsheet to calculate mCE:
     https://docs.google.com/spreadsheets/d/1RwqofJPHhtdRPG-dDO7wPp-aGn-AmwmU5-rpvTzrMHw
     """
+
     _name_ = "cifar-c"
     d_output = 10
     l_output = 0
@@ -176,14 +184,34 @@ class CIFAR10C(SequenceDataset):
 
     def setup(self):
         from src.dataloaders.datasets.cifarc import _CIFAR10C
+
         self.data_dir = self.data_dir or default_data_path / "CIFAR-10-C"
 
         # make sure self.corruptions was specified and is a valid choice
-        assert self.corruption != None, "You must specify a corruption. Options are: " + \
-            str(sorted([p.stem for p in self.data_dir.glob("*.npy") if not p.stem == 'labels']))
-        assert os.path.isfile(os.path.join(self.data_dir,f"{self.corruption}.npy")), \
-            f"Corruption '{self.corruption}' does not exist. Options are: " + \
-                str(sorted([p.stem for p in self.data_dir.glob("*.npy") if not p.stem == 'labels']))
+        assert self.corruption != None, (
+            "You must specify a corruption. Options are: "
+            + str(
+                sorted(
+                    [
+                        p.stem
+                        for p in self.data_dir.glob("*.npy")
+                        if not p.stem == "labels"
+                    ]
+                )
+            )
+        )
+        assert os.path.isfile(os.path.join(self.data_dir, f"{self.corruption}.npy")), (
+            f"Corruption '{self.corruption}' does not exist. Options are: "
+            + str(
+                sorted(
+                    [
+                        p.stem
+                        for p in self.data_dir.glob("*.npy")
+                        if not p.stem == "labels"
+                    ]
+                )
+            )
+        )
 
         preprocessors = [
             torchvision.transforms.ToTensor(),
@@ -197,10 +225,12 @@ class CIFAR10C(SequenceDataset):
             )
         ]
 
-        transform_eval = torchvision.transforms.Compose(preprocessors + permutations_list)
+        transform_eval = torchvision.transforms.Compose(
+            preprocessors + permutations_list
+        )
 
-        x = np.load(os.path.join(self.data_dir,f"{self.corruption}.npy"))
-        y = np.load(os.path.join(self.data_dir,"labels.npy"))
+        x = np.load(os.path.join(self.data_dir, f"{self.corruption}.npy"))
+        y = np.load(os.path.join(self.data_dir, "labels.npy"))
 
         self.dataset_test = _CIFAR10C(x, y, transform_eval)
 
@@ -382,7 +412,9 @@ class HMDB51(SequenceDataset):
         """Finds the class folders in a dataset.
         See :class:`DatasetFolder` for details.
         """
-        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+        classes = sorted(
+            entry.name for entry in os.scandir(directory) if entry.is_dir()
+        )
         if not classes:
             raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
 
@@ -390,7 +422,6 @@ class HMDB51(SequenceDataset):
         return classes, class_to_idx
 
     def setup(self):
-
         # for video datasets
         import pytorch_lightning
         import pytorchvideo.data
@@ -401,14 +432,25 @@ class HMDB51(SequenceDataset):
         self.RandomSampler = RandomSampler
         self.DistributedSampler = DistributedSampler
 
-        from pytorchvideo.transforms import (ApplyTransformToKey, AugMix,
-                                             Normalize, Permute, RandAugment,
-                                             RandomShortSideScale, RemoveKey,
-                                             ShortSideScale,
-                                             UniformTemporalSubsample)
-        from torchvision.transforms import (CenterCrop, Compose, Lambda,
-                                            RandomCrop, RandomHorizontalFlip,
-                                            Resize)
+        from pytorchvideo.transforms import (
+            ApplyTransformToKey,
+            AugMix,
+            Normalize,
+            Permute,
+            RandAugment,
+            RandomShortSideScale,
+            RemoveKey,
+            ShortSideScale,
+            UniformTemporalSubsample,
+        )
+        from torchvision.transforms import (
+            CenterCrop,
+            Compose,
+            Lambda,
+            RandomCrop,
+            RandomHorizontalFlip,
+            Resize,
+        )
 
         self.split_path = self.data_dir or default_data_path / self._name_
         self.split_path = os.path.join(self.split_path, self.split_dir)
@@ -426,13 +468,18 @@ class HMDB51(SequenceDataset):
 
         train_transform_list = []
 
-        train_transform_list += [UniformTemporalSubsample(self.num_frames),
-                            Lambda(lambda x: x / 255.0),
-                            Normalize(means, stds)]
+        train_transform_list += [
+            UniformTemporalSubsample(self.num_frames),
+            Lambda(lambda x: x / 255.0),
+            Normalize(means, stds),
+        ]
 
-        if self.augment == "randaug": aug_paras = self.randaug
-        elif self.augment == "augmix": aug_paras = self.augmix
-        else: aug_paras = None
+        if self.augment == "randaug":
+            aug_paras = self.randaug
+        elif self.augment == "augmix":
+            aug_paras = self.augmix
+        else:
+            aug_paras = None
         self.train_transform = pytorchvideo.transforms.create_video_transform(
             mode="train",
             video_key="video",
@@ -440,7 +487,7 @@ class HMDB51(SequenceDataset):
             convert_to_float=False,
             video_mean=means,
             video_std=stds,
-            min_size=256, # for ShortSideScale
+            min_size=256,  # for ShortSideScale
             crop_size=self.frame_size,
             aug_type=self.augment,
             aug_paras=aug_paras,
@@ -452,7 +499,7 @@ class HMDB51(SequenceDataset):
             convert_to_float=False,
             video_mean=means,
             video_std=stds,
-            min_size=256, # for ShortSideScale
+            min_size=256,  # for ShortSideScale
             crop_size=self.frame_size,
             aug_type=self.augment,
             aug_paras=aug_paras,
@@ -462,17 +509,17 @@ class HMDB51(SequenceDataset):
 
         # @staticmethod
         def collate_batch(batch, resolution=1):
-
             videos, str_labels, video_idxs = zip(
-                *[
-                    (data["video"], data["label"], data["video_index"])
-                    for data in batch
-                ]
+                *[(data["video"], data["label"], data["video_index"]) for data in batch]
             )
 
             # need to convert label string to int, and then to tensors
-            int_labels = [torch.tensor(self.class_to_idx[label]) for label in str_labels]
-            video_idx_labels = [torch.tensor(label) for label in video_idxs]  # just convert to tensor
+            int_labels = [
+                torch.tensor(self.class_to_idx[label]) for label in str_labels
+            ]
+            video_idx_labels = [
+                torch.tensor(label) for label in video_idxs
+            ]  # just convert to tensor
 
             xs = torch.stack(videos)  # shape = [b, c, t, h, w]
             ys = torch.stack(int_labels)
@@ -490,12 +537,14 @@ class HMDB51(SequenceDataset):
         self.dataset_train = self.pytorchvideo.Hmdb51(
             data_path=self.split_path,
             video_path_prefix=self.video_path,
-            clip_sampler=self.pytorchvideo.make_clip_sampler("random", self.clip_duration),
+            clip_sampler=self.pytorchvideo.make_clip_sampler(
+                "random", self.clip_duration
+            ),
             decode_audio=False,
             split_id=self.split_id,
             split_type="train",
             transform=self.train_transform,
-            video_sampler=sampler
+            video_sampler=sampler,
         )
 
         return torch.utils.data.DataLoader(
@@ -505,19 +554,24 @@ class HMDB51(SequenceDataset):
         )
 
     def val_dataloader(self, **kwargs):
-
-        kwargs['drop_last'] = False
-        sampler = partial(self.DistributedSampler, drop_last=kwargs['drop_last']) if self.num_gpus > 1 else self.RandomSampler
+        kwargs["drop_last"] = False
+        sampler = (
+            partial(self.DistributedSampler, drop_last=kwargs["drop_last"])
+            if self.num_gpus > 1
+            else self.RandomSampler
+        )
 
         self.dataset_val = self.pytorchvideo.Hmdb51(
             data_path=self.split_path,
             video_path_prefix=self.video_path,
-            clip_sampler=self.pytorchvideo.make_clip_sampler("uniform", self.clip_duration),
+            clip_sampler=self.pytorchvideo.make_clip_sampler(
+                "uniform", self.clip_duration
+            ),
             decode_audio=False,
             split_id=self.split_id,
             split_type="test",
             transform=self.test_transform,
-            video_sampler=sampler
+            video_sampler=sampler,
         )
 
         return torch.utils.data.DataLoader(
@@ -527,19 +581,24 @@ class HMDB51(SequenceDataset):
         )
 
     def test_dataloader(self, **kwargs):
-
-        kwargs['drop_last'] = False
-        sampler = partial(self.DistributedSampler, drop_last=kwargs['drop_last']) if self.num_gpus > 1 else self.RandomSampler
+        kwargs["drop_last"] = False
+        sampler = (
+            partial(self.DistributedSampler, drop_last=kwargs["drop_last"])
+            if self.num_gpus > 1
+            else self.RandomSampler
+        )
 
         self.dataset_test = self.pytorchvideo.Hmdb51(
             data_path=self.split_path,
             video_path_prefix=self.video_path,
-            clip_sampler=self.pytorchvideo.make_clip_sampler("uniform", self.clip_duration),
+            clip_sampler=self.pytorchvideo.make_clip_sampler(
+                "uniform", self.clip_duration
+            ),
             decode_audio=False,
             split_id=self.split_id,
             split_type="test",
             transform=self.test_transform,
-            video_sampler=sampler
+            video_sampler=sampler,
         )
 
         return torch.utils.data.DataLoader(
@@ -547,6 +606,7 @@ class HMDB51(SequenceDataset):
             collate_fn=self.collate_fn,
             **kwargs,
         )
+
 
 class ImageNet(SequenceDataset):
     """
@@ -610,7 +670,9 @@ class ImageNet(SequenceDataset):
             self._verify_splits(self.data_dir, "val")
         else:
             if not self.data_dir.is_file():
-                raise FileNotFoundError(f"""Archive file {str(self.data_dir)} not found.""")
+                raise FileNotFoundError(
+                    f"""Archive file {str(self.data_dir)} not found."""
+                )
 
     def setup(self, stage=None):
         """Creates train, val, and test dataset."""
@@ -618,8 +680,7 @@ class ImageNet(SequenceDataset):
         from typing import Any, Callable, List, Optional, Union
 
         import hydra  # for mixup
-        from pl_bolts.transforms.dataset_normalizations import \
-            imagenet_normalization
+        from pl_bolts.transforms.dataset_normalizations import imagenet_normalization
         from torch.utils.data import Dataset
         from torch.utils.data.dataloader import default_collate
         from torchvision.datasets import ImageFolder
@@ -659,10 +720,15 @@ class ImageNet(SequenceDataset):
         #     self.dataset_train = self.dataset_val
 
         if stage == "test" or stage is None:
-            test_transforms = (self.val_transform() if self.test_transforms is None
-                               else hydra.utils.instantiate(self.test_transforms))
+            test_transforms = (
+                self.val_transform()
+                if self.test_transforms is None
+                else hydra.utils.instantiate(self.test_transforms)
+            )
 
-            self.dataset_test = ImageFolder(os.path.join(self.dir_path, 'val'), transform=test_transforms)
+            self.dataset_test = ImageFolder(
+                os.path.join(self.dir_path, "val"), transform=test_transforms
+            )
 
             # # modded, override (for debugging)
             # self.dataset_test = self.dataset_val
@@ -686,32 +752,51 @@ class ImageNet(SequenceDataset):
         if val_upsample:
             self.val_transforms["input_size"] = img_size
 
-        train_transforms = (self.train_transform() if self.train_transforms is None
-                            else self.hydra.utils.instantiate(self.train_transforms))
-        val_transforms = (self.val_transform() if self.val_transforms is None
-                            else self.hydra.utils.instantiate(self.val_transforms))
+        train_transforms = (
+            self.train_transform()
+            if self.train_transforms is None
+            else self.hydra.utils.instantiate(self.train_transforms)
+        )
+        val_transforms = (
+            self.val_transform()
+            if self.val_transforms is None
+            else self.hydra.utils.instantiate(self.val_transforms)
+        )
 
         if self.loader_fft:
             train_transforms = torchvision.transforms.Compose(
-                train_transforms.transforms + [
-                    torchvision.transforms.Lambda(lambda x: torch.fft.rfftn(x, s=tuple([2*l for l in x.shape[1:]])))
+                train_transforms.transforms
+                + [
+                    torchvision.transforms.Lambda(
+                        lambda x: torch.fft.rfftn(
+                            x, s=tuple([2 * l for l in x.shape[1:]])
+                        )
+                    )
                 ]
             )
             val_transforms = torchvision.transforms.Compose(
-                val_transforms.transforms + [
-                    torchvision.transforms.Lambda(lambda x: torch.fft.rfftn(x, s=tuple([2*l for l in x.shape[1:]])))
+                val_transforms.transforms
+                + [
+                    torchvision.transforms.Lambda(
+                        lambda x: torch.fft.rfftn(
+                            x, s=tuple([2 * l for l in x.shape[1:]])
+                        )
+                    )
                 ]
             )
 
-        self.dataset_train = self.ImageFolder(self.dir_path / 'train',
-                                            transform=train_transforms)
+        self.dataset_train = self.ImageFolder(
+            self.dir_path / "train", transform=train_transforms
+        )
 
-        if self.val_split > 0.:
+        if self.val_split > 0.0:
             # this will create the val split
             self.split_train_val(self.val_split)
         # will use the test split as val by default
         else:
-            self.dataset_val = self.ImageFolder(self.dir_path / 'val', transform=val_transforms)
+            self.dataset_val = self.ImageFolder(
+                self.dir_path / "val", transform=val_transforms
+            )
 
         # # modded, override (for debugging)
         # self.dataset_train = self.dataset_val
@@ -719,9 +804,14 @@ class ImageNet(SequenceDataset):
         # not sure if normally you upsample test also
         if test_upsample:
             self.test_transforms["input_size"] = img_size
-            test_transforms = (self.val_transform() if self.test_transforms is None
-                                else self.hydra.utils.instantiate(self.test_transforms))
-            self.dataset_test = self.ImageFolder(os.path.join(self.dir_path, 'val'), transform=test_transforms)
+            test_transforms = (
+                self.val_transform()
+                if self.test_transforms is None
+                else self.hydra.utils.instantiate(self.test_transforms)
+            )
+            self.dataset_test = self.ImageFolder(
+                os.path.join(self.dir_path, "val"), transform=test_transforms
+            )
             ## modded, override (for debugging)
             # self.dataset_test = self.dataset_val
 
@@ -780,53 +870,79 @@ class ImageNet(SequenceDataset):
     #     return (self._data_loader(self.dataset_train, shuffle=True, mixup=self.mixup_fn, **kwargs))
 
     def train_dataloader(self, **kwargs):
-        """ The train dataloader """
+        """The train dataloader"""
         if self.num_aug_repeats == 0 or self.num_gpus == 1:
             shuffle = self.shuffle
             sampler = None
         else:
             shuffle = False
             from timm.data.distributed_sampler import RepeatAugSampler
-            sampler = RepeatAugSampler(self.dataset_train, num_repeats=self.num_aug_repeats)
+
+            sampler = RepeatAugSampler(
+                self.dataset_train, num_repeats=self.num_aug_repeats
+            )
 
         # calculate resolution
-        resolution = self.image_size / self.train_transforms['input_size']  # usually 1.0
+        resolution = (
+            self.image_size / self.train_transforms["input_size"]
+        )  # usually 1.0
 
-        return (self._data_loader(self.dataset_train, shuffle=shuffle, mixup=self.mixup_fn, sampler=sampler, resolution=resolution, **kwargs))
+        return self._data_loader(
+            self.dataset_train,
+            shuffle=shuffle,
+            mixup=self.mixup_fn,
+            sampler=sampler,
+            resolution=resolution,
+            **kwargs,
+        )
 
-    def val_dataloader(self, **kwargs):    
-        """ The val dataloader """
-        kwargs['drop_last'] = False
+    def val_dataloader(self, **kwargs):
+        """The val dataloader"""
+        kwargs["drop_last"] = False
 
         # update batch_size for eval if provided
         batch_size = kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
         kwargs["batch_size"] = batch_size
 
         # calculate resolution
-        resolution = self.image_size / self.val_transforms['input_size']  # usually 1.0 or 0.583
+        resolution = (
+            self.image_size / self.val_transforms["input_size"]
+        )  # usually 1.0 or 0.583
 
-        return (self._data_loader(self.dataset_val, resolution=resolution, **kwargs))
+        return self._data_loader(self.dataset_val, resolution=resolution, **kwargs)
 
-    def test_dataloader(self, **kwargs):    
-        """ The test dataloader """
-        kwargs['drop_last'] = False
+    def test_dataloader(self, **kwargs):
+        """The test dataloader"""
+        kwargs["drop_last"] = False
 
         # update batch_size for test if provided
-        batch_size = kwargs.get("batch_size_test", None) or kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
+        batch_size = (
+            kwargs.get("batch_size_test", None)
+            or kwargs.get("batch_size_eval", None)
+            or kwargs.get("batch_size")
+        )
         kwargs["batch_size"] = batch_size
 
         # calculate resolution
-        resolution = self.image_size / self.test_transforms.get("input_size", self.val_transforms['input_size'])
+        resolution = self.image_size / self.test_transforms.get(
+            "input_size", self.val_transforms["input_size"]
+        )
 
-        return (self._data_loader(self.dataset_test, resolution=resolution, **kwargs))
+        return self._data_loader(self.dataset_test, resolution=resolution, **kwargs)
 
-    def _data_loader(self, dataset, resolution, shuffle=False, mixup=None, sampler=None, **kwargs):
+    def _data_loader(
+        self, dataset, resolution, shuffle=False, mixup=None, sampler=None, **kwargs
+    ):
         # collate_fn = (lambda batch: mixup(*self.default_collate(batch))) if mixup is not None else self.default_collate
-        collate_fn = (lambda batch: mixup(*self.collate_with_resolution(batch, resolution))) if mixup is not None else lambda batch: self.collate_with_resolution(batch, resolution)
+        collate_fn = (
+            (lambda batch: mixup(*self.collate_with_resolution(batch, resolution)))
+            if mixup is not None
+            else lambda batch: self.collate_with_resolution(batch, resolution)
+        )
 
         # hacked - can't pass this this arg to dataloader, but used to update the batch_size val / test
-        kwargs.pop('batch_size_eval', None)
-        kwargs.pop('batch_size_test', None)
+        kwargs.pop("batch_size_eval", None)
+        kwargs.pop("batch_size_test", None)
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -846,18 +962,19 @@ class ImageNet(SequenceDataset):
     #         dataset, collate_fn=collate_fn, **kwargs
     #     )
 
+
 class ImageNetA(ImageNet):
-    _name_ = 'imagenet-a'
+    _name_ = "imagenet-a"
 
     init_defaults = {
-        'transforms': None,
+        "transforms": None,
     }
 
     def setup(self):
-        from pl_bolts.transforms.dataset_normalizations import \
-            imagenet_normalization
+        from pl_bolts.transforms.dataset_normalizations import imagenet_normalization
         from torch.utils.data.dataloader import default_collate
         from torchvision.datasets import ImageFolder
+
         self.imagenet_normalization = imagenet_normalization
         self.default_collate = default_collate
         self.ImageFolder = ImageFolder
@@ -866,7 +983,8 @@ class ImageNetA(ImageNet):
 
         # self.transforms["input_size"] = 224
         transforms = (
-            self.val_transform() if self.transforms is None
+            self.val_transform()
+            if self.transforms is None
             else self.hydra.utils.instantiate(self.transforms)
         )
 
@@ -874,21 +992,23 @@ class ImageNetA(ImageNet):
         self.dataset_val = None
         self.dataset_test = self.ImageFolder(self.dir_path, transform=transforms)
 
+
 class ImageNetR(ImageNetA):
-    _name_ = 'imagenet-r'
+    _name_ = "imagenet-r"
+
 
 class ImageNetC(ImageNet):
-    _name_ = 'imagenet-c'
+    _name_ = "imagenet-c"
 
     init_defaults = {
-        'transforms': None,
+        "transforms": None,
     }
 
     def setup(self):
-        from pl_bolts.transforms.dataset_normalizations import \
-            imagenet_normalization
+        from pl_bolts.transforms.dataset_normalizations import imagenet_normalization
         from torch.utils.data.dataloader import default_collate
         from torchvision.datasets import ImageFolder
+
         self.imagenet_normalization = imagenet_normalization
         self.default_collate = default_collate
         self.ImageFolder = ImageFolder
@@ -896,12 +1016,16 @@ class ImageNetC(ImageNet):
 
         # self.transforms["input_size"] = 224
         transforms = (
-            self.val_transform() if self.transforms is None
+            self.val_transform()
+            if self.transforms is None
             else self.hydra.utils.instantiate(self.transforms)
         )
 
         variants = [os.listdir(self.dir_path)][0]
-        subvariants = {variant: os.listdir(os.path.join(self.dir_path, variant)) for variant in variants}
+        subvariants = {
+            variant: os.listdir(os.path.join(self.dir_path, variant))
+            for variant in variants
+        }
 
         self.dataset_test = {
             f'{variant + "/" + subvariant}': self.ImageFolder(
@@ -918,33 +1042,38 @@ class ImageNetC(ImageNet):
 
     def val_dataloader(self, **kwargs):
         """Using the same dataloader as test, a hack for zero shot eval without training"""
-        kwargs['drop_last'] = False
-        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
+        kwargs["drop_last"] = False
+        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get(
+            "batch_size"
+        )
         return {
             name: self._data_loader(dataset, resolution=1, **kwargs)
             for name, dataset in self.dataset_test.items()
         }
 
     def test_dataloader(self, **kwargs):
-        kwargs['drop_last'] = False
-        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
+        kwargs["drop_last"] = False
+        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get(
+            "batch_size"
+        )
         return {
             name: self._data_loader(dataset, resolution=1, **kwargs)
             for name, dataset in self.dataset_test.items()
         }
 
+
 class ImageNetP(ImageNet):
-    _name_ = 'imagenet-p'
+    _name_ = "imagenet-p"
 
     init_defaults = {
-        'transforms': None,
+        "transforms": None,
     }
 
     def setup(self):
-        from pl_bolts.transforms.dataset_normalizations import \
-            imagenet_normalization
+        from pl_bolts.transforms.dataset_normalizations import imagenet_normalization
         from src.dataloaders.utils.video_loader import VideoFolder
         from torch.utils.data.dataloader import default_collate
+
         self.imagenet_normalization = imagenet_normalization
         self.default_collate = default_collate
         self.VideoFolder = VideoFolder
@@ -952,7 +1081,8 @@ class ImageNetP(ImageNet):
 
         # self.transforms["input_size"] = 224
         transforms = (
-            self.val_transform() if self.transforms is None
+            self.val_transform()
+            if self.transforms is None
             else self.hydra.utils.instantiate(self.transforms)
         )
 
@@ -960,7 +1090,7 @@ class ImageNetP(ImageNet):
         # subvariants = {variant: os.listdir(os.path.join(self.dir_path, variant)) for variant in variants}
 
         self.dataset_test = {
-            f'{variant}': self.VideoFolder(
+            f"{variant}": self.VideoFolder(
                 os.path.join(self.dir_path, variant),
                 transform=transforms,
             )
@@ -974,16 +1104,20 @@ class ImageNetP(ImageNet):
 
     def val_dataloader(self, train_resolution, eval_resolutions, **kwargs):
         """Using the same dataloader as test, a hack for zero shot eval without training"""
-        kwargs['drop_last'] = False
-        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
+        kwargs["drop_last"] = False
+        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get(
+            "batch_size"
+        )
         return {
             name: self._data_loader(dataset, **kwargs)
             for name, dataset in self.dataset_test.items()
         }
 
     def test_dataloader(self, train_resolution, eval_resolutions, **kwargs):
-        kwargs['drop_last'] = False
-        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get("batch_size")
+        kwargs["drop_last"] = False
+        kwargs["batch_size"] = kwargs.get("batch_size_eval", None) or kwargs.get(
+            "batch_size"
+        )
         return {
             name: self._data_loader(dataset, **kwargs)
             for name, dataset in self.dataset_test.items()

@@ -11,6 +11,7 @@ from src.models.nn import Activation, DropoutNd
 
 contract = torch.einsum
 
+
 class FFTConv(SequenceModule):
     """Implements an FFT Convolution around a convolution kernel.
 
@@ -32,12 +33,12 @@ class FFTConv(SequenceModule):
         channels=1,
         swap_channels=False,
         bidirectional=False,
-        activation=None, # Activation after layer
+        activation=None,  # Activation after layer
         transposed=True,
         dropout=0.0,
         tie_dropout=False,
         drop_kernel=0.0,
-        mode='dplr',
+        mode="dplr",
         kernel=None,
         **kernel_args,  # Arguments passed into inner convolution kernel
     ):
@@ -49,8 +50,7 @@ class FFTConv(SequenceModule):
         self.transposed = transposed
         self.swap_channels = swap_channels
 
-
-        if activation is not None and activation.startswith('glu'):
+        if activation is not None and activation.startswith("glu"):
             channels *= 2
         self.activation = Activation(activation, dim=1 if self.transposed else -1)
 
@@ -77,26 +77,32 @@ class FFTConv(SequenceModule):
 
         dropout_fn = DropoutNd if tie_dropout else nn.Dropout
         self.drop = dropout_fn(dropout) if dropout > 0.0 else nn.Identity()
-        self.drop_kernel = nn.Dropout(drop_kernel) if drop_kernel > 0.0 else nn.Identity()
+        self.drop_kernel = (
+            nn.Dropout(drop_kernel) if drop_kernel > 0.0 else nn.Identity()
+        )
 
-    def forward(self, x, state=None, rate=1.0, **kwargs): # absorbs return_output and transformer src mask
+    def forward(
+        self, x, state=None, rate=1.0, **kwargs
+    ):  # absorbs return_output and transformer src mask
         """
         x: (B D L) if self.transposed else (B L D)
         """
 
         # Always work with (B D L) dimension in this module
-        if not self.transposed: x = x.transpose(-1, -2)
+        if not self.transposed:
+            x = x.transpose(-1, -2)
         L = x.size(-1)
 
         # Compute SS Kernel
         l_kernel = L if self.L is None else min(L, round(self.L / rate))
-        k, k_state =  self.kernel(L=l_kernel, rate=rate, state=state) # (C H L) (B C H L)
+        k, k_state = self.kernel(
+            L=l_kernel, rate=rate, state=state
+        )  # (C H L) (B C H L)
 
         # Convolution
         if self.bidirectional:
-            k0, k1 = rearrange(k, '(s c) h l -> s c h l', s=2)
-            k = F.pad(k0, (0, L)) \
-                    + F.pad(k1.flip(-1), (L, 0))
+            k0, k1 = rearrange(k, "(s c) h l -> s c h l", s=2)
+            k = F.pad(k0, (0, L)) + F.pad(k1.flip(-1), (L, 0))
             # The above has an off-by-one in the reverse direction
             # This is a deliberate choice since the off-by-one should not affect any applications
             # This can be amended which may be very slightly slower
@@ -109,37 +115,37 @@ class FFTConv(SequenceModule):
 
         # In principle, we could pad to l_kernel+L-1 instead of l_kernel+L, but we choose the latter for
         # equational simplicity. Additionally, we have not experimented to compare the efficiency of the two.
-        k_f = torch.fft.rfft(k, n=l_kernel+L) # (C H L)
-        x_f = torch.fft.rfft(x, n=l_kernel+L) # (B H L)
-        y_f = contract('bhl,chl->bchl', x_f, k_f)
-        y = torch.fft.irfft(y_f, n=l_kernel+L)[..., :L] # (B C H L)
-
+        k_f = torch.fft.rfft(k, n=l_kernel + L)  # (C H L)
+        x_f = torch.fft.rfft(x, n=l_kernel + L)  # (B H L)
+        y_f = contract("bhl,chl->bchl", x_f, k_f)
+        y = torch.fft.irfft(y_f, n=l_kernel + L)[..., :L]  # (B C H L)
 
         # Compute D term in state space equation - essentially a skip connection
-        y = y + contract('bhl,ch->bchl', x, self.D)
+        y = y + contract("bhl,ch->bchl", x, self.D)
 
         # Compute state update
         if state is not None:
-            assert not self.bidirectional, "Bidirectional not supported with state forwarding"
-            y = y + k_state #
+            assert (
+                not self.bidirectional
+            ), "Bidirectional not supported with state forwarding"
+            y = y + k_state  #
             next_state = self.kernel.forward_state(x, state)
         else:
             next_state = None
 
-
         # Reshape to flatten channels
         if self.swap_channels:
-            y = rearrange(y, 'b c h l -> b (h c) l')
+            y = rearrange(y, "b c h l -> b (h c) l")
         else:
-            y = rearrange(y, 'b c h l -> b (c h) l')
+            y = rearrange(y, "b c h l -> b (c h) l")
 
         y = self.drop(y)  # DropoutNd better with transposed=True
 
-        if not self.transposed: y = y.transpose(-1, -2)
+        if not self.transposed:
+            y = y.transpose(-1, -2)
         y = self.activation(y)
 
         return y, next_state
-
 
     def setup_step(self, **kwargs):
         self.kernel._setup_step(**kwargs)
@@ -152,9 +158,9 @@ class FFTConv(SequenceModule):
         Returns: output (B H), state (B H N)
         """
 
-        y, next_state = self.kernel.step(x, state) # (B C H)
+        y, next_state = self.kernel.step(x, state)  # (B C H)
         y = y + x.unsqueeze(-2) * self.D
-        y = rearrange(y, 'b c h -> b (c h)')
+        y = rearrange(y, "b c h -> b (c h)")
         y = self.activation(y)
         return y, next_state
 

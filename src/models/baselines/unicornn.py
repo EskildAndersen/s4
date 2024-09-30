@@ -306,7 +306,7 @@ class UnICORNN(SequenceModule):
         alpha,
         n_layers,
         dropout=0.1,
-        **kwargs
+        **kwargs,
     ):
         if not _unicornn_available:
             raise ImportError(
@@ -344,7 +344,6 @@ class UnICORNN(SequenceModule):
                 param.data.fill_(0.0)
 
     def forward(self, input, *args, **kwargs):
-
         input = input.transpose(0, 1)
 
         rnnoutputs = {}

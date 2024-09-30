@@ -40,7 +40,9 @@ class SequenceDecoder(Decoder):
     ):
         super().__init__()
 
-        self.output_transform = nn.Identity() if d_output is None else nn.Linear(d_model, d_output)
+        self.output_transform = (
+            nn.Identity() if d_output is None else nn.Linear(d_model, d_output)
+        )
 
         if l_output is None:
             self.l_output = None
@@ -57,7 +59,7 @@ class SequenceDecoder(Decoder):
         self.use_lengths = use_lengths
         self.mode = mode
 
-        if mode == 'ragged':
+        if mode == "ragged":
             assert not use_lengths
 
     def forward(self, x, state=None, lengths=None, l_output=None):
@@ -106,7 +108,7 @@ class SequenceDecoder(Decoder):
         elif self.mode == "sum":
             restrict = lambda x: torch.cumsum(x, dim=-2)[..., -l_output:, :]
             # TODO use same restrict function as pool case
-        elif self.mode == 'ragged':
+        elif self.mode == "ragged":
             assert lengths is not None, "lengths must be provided for ragged mode"
             # remove any additional padding (beyond max length of any sequence in the batch)
             restrict = lambda x: x[..., : max(lengths), :]
@@ -140,15 +142,17 @@ class SequenceDecoder(Decoder):
         # Ignore all length logic
         return self.output_transform(x)
 
+
 class NDDecoder(Decoder):
     """Decoder for single target (e.g. classification or regression)."""
-    def __init__(
-        self, d_model, d_output=None, mode="pool"
-    ):
+
+    def __init__(self, d_model, d_output=None, mode="pool"):
         super().__init__()
 
         assert mode in ["pool", "full"]
-        self.output_transform = nn.Identity() if d_output is None else nn.Linear(d_model, d_output)
+        self.output_transform = (
+            nn.Identity() if d_output is None else nn.Linear(d_model, d_output)
+        )
 
         self.mode = mode
 
@@ -158,10 +162,11 @@ class NDDecoder(Decoder):
         Returns: (n_batch, l_output, d_output)
         """
 
-        if self.mode == 'pool':
-            x = reduce(x, 'b ... h -> b h', 'mean')
+        if self.mode == "pool":
+            x = reduce(x, "b ... h -> b h", "mean")
         x = self.output_transform(x)
         return x
+
 
 class StateDecoder(Decoder):
     """Use the output state to decode (useful for stateful models such as RNNs or perhaps Transformer-XL if it gets implemented."""
@@ -187,9 +192,7 @@ class RetrievalHead(nn.Module):
         else:
             raise NotImplementedError
 
-        if (
-            self.nli
-        ):  # Architecture from https://github.com/mlpen/Nystromformer/blob/6539b895fa5f798ea0509d19f336d4be787b5708/reorganized_code/LRA/model_wrapper.py#L74
+        if self.nli:  # Architecture from https://github.com/mlpen/Nystromformer/blob/6539b895fa5f798ea0509d19f336d4be787b5708/reorganized_code/LRA/model_wrapper.py#L74
             self.classifier = nn.Sequential(
                 nn.Linear(4 * d_input, d_model),
                 activation_fn,
@@ -231,7 +234,7 @@ class RetrievalDecoder(Decoder):
         nli=True,
         activation="relu",
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         if d_model is None:
@@ -247,6 +250,7 @@ class RetrievalDecoder(Decoder):
         x = self.feature(x, state=state, **kwargs)
         x = self.retrieval(x)
         return x
+
 
 class PackedDecoder(Decoder):
     def forward(self, x, state=None):

@@ -6,12 +6,15 @@ import os
 import PIL
 from typing import Any, Callable, List, Optional, Union, Tuple
 from torchvision.datasets import VisionDataset
+
 try:
     import gdown
+
     DOWNLOAD = True
 except ImportError:
     DOWNLOAD = False
 import numpy as np
+
 
 class _CelebA(VisionDataset):
     """`Large-scale CelebFaces Attributes (CelebA) Dataset <http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html>`_ Dataset.
@@ -44,27 +47,53 @@ class _CelebA(VisionDataset):
     base_folder = "celeba"
     file_list = [
         # File ID                         MD5 Hash                            Filename
-        ("1cNIac61PSA_LqDFYFUeyaQYekYPc75NH", "00d2c5bc6d35e252742224ab0c1e8fcb", "img_align_celeba.zip"),
-        ("0B7EVK8r0v71pblRyaVFSWGxPY0U", "75e246fa4810816ffd6ee81facbd244c", "list_attr_celeba.txt"),
-        ("1_ee_0u7vcNLOfNLegJRHmolfH5ICW-XS", "32bd1bd63d3c78cd57e08160ec5ed1e2", "identity_CelebA.txt"),
-        ("0B7EVK8r0v71pbThiMVRxWXZ4dU0", "00566efa6fedff7a56946cd1c10f1c16", "list_bbox_celeba.txt"),
-        ("0B7EVK8r0v71pd0FJY3Blby1HUTQ", "cc24ecafdb5b50baae59b03474781f8c", "list_landmarks_align_celeba.txt"),
-        ("0B7EVK8r0v71pY0NSMzRuSXJEVkk", "d32c9cbf5e040fd4025c592c306e6668", "list_eval_partition.txt"),
+        (
+            "1cNIac61PSA_LqDFYFUeyaQYekYPc75NH",
+            "00d2c5bc6d35e252742224ab0c1e8fcb",
+            "img_align_celeba.zip",
+        ),
+        (
+            "0B7EVK8r0v71pblRyaVFSWGxPY0U",
+            "75e246fa4810816ffd6ee81facbd244c",
+            "list_attr_celeba.txt",
+        ),
+        (
+            "1_ee_0u7vcNLOfNLegJRHmolfH5ICW-XS",
+            "32bd1bd63d3c78cd57e08160ec5ed1e2",
+            "identity_CelebA.txt",
+        ),
+        (
+            "0B7EVK8r0v71pbThiMVRxWXZ4dU0",
+            "00566efa6fedff7a56946cd1c10f1c16",
+            "list_bbox_celeba.txt",
+        ),
+        (
+            "0B7EVK8r0v71pd0FJY3Blby1HUTQ",
+            "cc24ecafdb5b50baae59b03474781f8c",
+            "list_landmarks_align_celeba.txt",
+        ),
+        (
+            "0B7EVK8r0v71pY0NSMzRuSXJEVkk",
+            "d32c9cbf5e040fd4025c592c306e6668",
+            "list_eval_partition.txt",
+        ),
     ]
 
     def __init__(
-            self,
-            root: str,
-            task: str = None,
-            split: str = "train",
-            target_type: Union[List[str], str] = "attr",
-            transform: Optional[Callable] = None,
-            target_transform: Optional[Callable] = None,
-            download: bool = False,
+        self,
+        root: str,
+        task: str = None,
+        split: str = "train",
+        target_type: Union[List[str], str] = "attr",
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        download: bool = False,
     ) -> None:
         import pandas
-        super(_CelebA, self).__init__(root, transform=transform,
-                                     target_transform=target_transform)
+
+        super(_CelebA, self).__init__(
+            root, transform=transform, target_transform=target_transform
+        )
         self.split = split
         if isinstance(target_type, list):
             self.target_type = target_type
@@ -72,7 +101,7 @@ class _CelebA(VisionDataset):
             self.target_type = [target_type]
 
         if not self.target_type and self.target_transform is not None:
-            raise RuntimeError('target_transform is specified but target_type is empty')
+            raise RuntimeError("target_transform is specified but target_type is empty")
 
         if download:
             self.download()
@@ -86,18 +115,20 @@ class _CelebA(VisionDataset):
         }
         split_ = split_map[split]
 
-        if split == 'hq':
+        if split == "hq":
             fn = partial(os.path.join, self.root)
         else:
             fn = partial(os.path.join, self.root, self.base_folder)
 
         splits = pandas.read_csv(fn("list_eval_partition.csv"), header=0, index_col=0)
         attr = pandas.read_csv(fn("list_attr_celeba.csv"), header=0, index_col=0)
-        mask = slice(None) if split_ is None else (splits['partition'] == split_)
+        mask = slice(None) if split_ is None else (splits["partition"] == split_)
 
-        if split == 'hq':
-            filenames = os.listdir(fn('train')) + os.listdir(fn('val'))
-            self.filename = [fn('train', f) for f in os.listdir(fn('train'))] + [fn('val', f) for f in os.listdir(fn('val'))]
+        if split == "hq":
+            filenames = os.listdir(fn("train")) + os.listdir(fn("val"))
+            self.filename = [fn("train", f) for f in os.listdir(fn("train"))] + [
+                fn("val", f) for f in os.listdir(fn("val"))
+            ]
             self.attr = torch.as_tensor(attr.loc[filenames].values)
         else:
             self.filename = splits[mask].index.values
@@ -112,24 +143,40 @@ class _CelebA(VisionDataset):
 
     def download(self) -> None:
         import zipfile
+
         if not DOWNLOAD:
             raise ImportError("Must install gdown.")
 
-        if os.path.exists(os.path.join(self.root, self.base_folder, 'img_align_celeba')):
-            print('Files already downloaded and verified')
+        if os.path.exists(
+            os.path.join(self.root, self.base_folder, "img_align_celeba")
+        ):
+            print("Files already downloaded and verified")
             return
 
-        for (file_id, md5, filename) in self.file_list:
-            gdown.download(f'https://drive.google.com/uc?id={file_id}', os.path.join(self.root, self.base_folder, filename), quiet=False)
+        for file_id, md5, filename in self.file_list:
+            gdown.download(
+                f"https://drive.google.com/uc?id={file_id}",
+                os.path.join(self.root, self.base_folder, filename),
+                quiet=False,
+            )
 
-        with zipfile.ZipFile(os.path.join(self.root, self.base_folder, "img_align_celeba.zip"), "r") as f:
+        with zipfile.ZipFile(
+            os.path.join(self.root, self.base_folder, "img_align_celeba.zip"), "r"
+        ) as f:
             f.extractall(os.path.join(self.root, self.base_folder))
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        if self.split == 'hq':
+        if self.split == "hq":
             X = PIL.Image.open(self.filename[index])
         else:
-            X = PIL.Image.open(os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[index]))
+            X = PIL.Image.open(
+                os.path.join(
+                    self.root,
+                    self.base_folder,
+                    "img_align_celeba",
+                    self.filename[index],
+                )
+            )
 
         target: Any = []
         for t in self.target_type:
@@ -143,7 +190,7 @@ class _CelebA(VisionDataset):
                 target.append(self.landmarks_align[index, :])
             else:
                 # TODO: refactor with utils.verify_str_arg
-                raise ValueError("Target type \"{}\" is not recognized.".format(t))
+                raise ValueError('Target type "{}" is not recognized.'.format(t))
 
         if self.transform is not None:
             X = self.transform(X)
@@ -165,4 +212,4 @@ class _CelebA(VisionDataset):
 
     def extra_repr(self) -> str:
         lines = ["Target type: {target_type}", "Split: {split}"]
-        return '\n'.join(lines).format(**self.__dict__)
+        return "\n".join(lines).format(**self.__dict__)

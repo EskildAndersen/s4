@@ -32,7 +32,7 @@ def split_data(
 
 
 def _to_numpy(X):
-    """ Convert DataFrame of series into numpy array """
+    """Convert DataFrame of series into numpy array"""
     return np.stack([np.stack(x) for x in X.to_numpy()]).swapaxes(-1, -2)
 
 

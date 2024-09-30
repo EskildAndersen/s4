@@ -14,12 +14,15 @@ from einops import rearrange, repeat, reduce
 from train import SequenceLightningModule
 from omegaconf import OmegaConf
 
+
 @hydra.main(config_path="../configs", config_name="generate.yaml")
 def main(config: OmegaConf):
     # Load train config from existing Hydra experiment
     if config.experiment_path is not None:
         config.experiment_path = hydra.utils.to_absolute_path(config.experiment_path)
-        experiment_config = OmegaConf.load(os.path.join(config.experiment_path, '.hydra', 'config.yaml'))
+        experiment_config = OmegaConf.load(
+            os.path.join(config.experiment_path, ".hydra", "config.yaml")
+        )
         config.model = experiment_config.model
         config.task = experiment_config.task
         config.encoder = experiment_config.encoder
@@ -41,15 +44,15 @@ def main(config: OmegaConf):
     print("Full checkpoint path:", ckpt_path)
 
     # Load model
-    if ckpt_path.endswith('.ckpt'):
+    if ckpt_path.endswith(".ckpt"):
         model = SequenceLightningModule.load_from_checkpoint(ckpt_path, config=config)
-        model.to('cuda')
-    elif ckpt_path.endswith('.pt'):
+        model.to("cuda")
+    elif ckpt_path.endswith(".pt"):
         model = SequenceLightningModule(config)
-        model.to('cuda')
+        model.to("cuda")
 
         # Load checkpoint
-        state_dict = torch.load(ckpt_path, map_location='cuda')
+        state_dict = torch.load(ckpt_path, map_location="cuda")
         model.load_state_dict(state_dict)
         model.eval()
 
@@ -57,9 +60,11 @@ def main(config: OmegaConf):
     debug = False
     if debug:
         val_dataloaders = model.val_dataloader()
-        loader = val_dataloaders[0] if isinstance(val_dataloaders, list) else val_dataloaders
+        loader = (
+            val_dataloaders[0] if isinstance(val_dataloaders, list) else val_dataloaders
+        )
 
-        model = model.to('cuda')
+        model = model.to("cuda")
         model.eval()
         batch = next(iter(loader))
         batch = (batch[0].cuda(), batch[1].cuda(), batch[2])
@@ -71,8 +76,10 @@ def main(config: OmegaConf):
 
     ## Use PL test to calculate final metrics
     from train import create_trainer
+
     trainer = create_trainer(config)
     trainer.test(model)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

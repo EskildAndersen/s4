@@ -28,6 +28,7 @@ import torch.nn.functional as F
 
 from src.utils import distributed
 import src.utils.train
+
 log = src.utils.train.get_logger(__name__)
 
 
@@ -37,11 +38,12 @@ import src.utils as utils
 
 # TODO: create a package so we don't have to mess with sys.path?
 project_root = Path(__file__).parent.parent.absolute()
-data_path = Path(__file__).absolute().parent / 'data'
+data_path = Path(__file__).absolute().parent / "data"
 
 import sys
 
 sys.path.insert(0, str(project_root))
+
 
 class LMOrderedIterator:
     def __init__(
@@ -53,8 +55,8 @@ class LMOrderedIterator:
         n_context=1,
         n_epoch_double=0,
         pad_last=False,
-        roll_seed=None, # roll data based on seed
-        limit_tokens=1.0, # reduce tokens; useful for debugging last batch edge cases
+        roll_seed=None,  # roll data based on seed
+        limit_tokens=1.0,  # reduce tokens; useful for debugging last batch edge cases
     ):
         """
         data -- LongTensor -- the LongTensor is strictly ordered
@@ -83,7 +85,7 @@ class LMOrderedIterator:
         self.process()
 
     def process(self):
-        """ Process the data. All logic involving sequence length and batch size should go here """
+        """Process the data. All logic involving sequence length and batch size should go here"""
         assert self.l_max % self.n_context == 0
         self.l_inc = self.l_max // self.n_context
 
@@ -96,7 +98,9 @@ class LMOrderedIterator:
         self.data = self.raw_data[: n_step * global_batch_size]
 
         # Evenly divide the data across the batches.
-        self.data = self.data.view(global_batch_size, -1).contiguous().pin_memory() # (global_batch_size, length)
+        self.data = (
+            self.data.view(global_batch_size, -1).contiguous().pin_memory()
+        )  # (global_batch_size, length)
 
         # Partition data for DistributedDataParallel
         self.data = self.data.chunk(self.world_size, dim=0)[self.rank]
@@ -115,25 +119,25 @@ class LMOrderedIterator:
             self.data[i, :] = row
 
     def get_batch(self, i):
-        """ Get batch starting at token index i """
+        """Get batch starting at token index i"""
 
-        end_idx = min(i + self.l_inc, self.data.size(-1)-1)
+        end_idx = min(i + self.l_inc, self.data.size(-1) - 1)
         beg_idx = max(0, i + self.l_inc - self.l_max)
         seq_len = end_idx - i
 
         data = self.data[..., beg_idx:end_idx]
-        target = self.data[..., i+1 : end_idx+1]
+        target = self.data[..., i + 1 : end_idx + 1]
 
         if self.pad_last and seq_len < self.l_inc:
-            data = F.pad(data, (0, self.l_inc - seq_len)) # (batch_size, l_inc)
+            data = F.pad(data, (0, self.l_inc - seq_len))  # (batch_size, l_inc)
             target = F.pad(target, (0, self.l_inc - seq_len))
             seq_len = self.l_inc
 
         if not self.batch_first:
-            data = data.transpose(0, 1).contiguous() # (n_batch, l_sequence)
+            data = data.transpose(0, 1).contiguous()  # (n_batch, l_sequence)
             target = target.transpose(0, 1).contiguous()
 
-        return data, target, {"l_output": seq_len} # Return length of desired output
+        return data, target, {"l_output": seq_len}  # Return length of desired output
 
     def get_fixlen_iter(self, start=0):
         if start != 0:
@@ -142,13 +146,17 @@ class LMOrderedIterator:
             self.last_iter = i
             yield self.get_batch(i)
 
-    def get_varlen_iter(self, start=0, std=5, min_len=5, max_deviation=3): # NOTE: NOT TESTED
+    def get_varlen_iter(
+        self, start=0, std=5, min_len=5, max_deviation=3
+    ):  # NOTE: NOT TESTED
         l_max = self.l_max + max_deviation * std
         i = start
         while True:
             l_max = self.l_max if np.random.random() < 0.95 else self.l_max / 2.0
             l_max = min(l_max, max(min_len, int(np.random.normal(l_max, std))))
-            data, target, seq_len = self.get_batch(i, l_max) # AG: this doesn't appear to work...
+            data, target, seq_len = self.get_batch(
+                i, l_max
+            )  # AG: this doesn't appear to work...
             i += seq_len
             yield data, target, seq_len
             if i >= self.data.size(-1) - 2:
@@ -158,7 +166,9 @@ class LMOrderedIterator:
         self.epoch += 1
         if (n := self.n_epoch_double) > 0 and self.epoch > 0 and self.epoch % n == 0:
             if self.batch_size > 1:
-                log.info(f"LM Iterator doubling length from {self.l_max} to {self.l_max*2}")
+                log.info(
+                    f"LM Iterator doubling length from {self.l_max} to {self.l_max*2}"
+                )
                 self.l_max *= 2
                 self.batch_size //= 2
                 self.process()
@@ -272,7 +282,6 @@ class LMMultiFileIterator(LMShuffledIterator):
         ext_len=None,
         shuffle=False,
     ):
-
         self.paths = paths
         self.vocab = vocab
 
@@ -311,10 +320,10 @@ class WikiText2(SequenceDataset):
 
     init_defaults = {
         # Dataset arguments
-        'l_max': 512,
-        'bpe': False,
-        'roll_seed': 42,
-        'test_split': True,
+        "l_max": 512,
+        "bpe": False,
+        "roll_seed": 42,
+        "test_split": True,
     }
 
     @property
@@ -333,8 +342,11 @@ class WikiText2(SequenceDataset):
                 check=True,
             )
 
-    def setup(self, stage=None): # [21-09-10 AG]: TODO shouldn't this tokenization happen in the prepare_data? since we're caching it it doesn't really matter, but still
-        if self.data_dir is None: self.data_dir = default_data_path / self._name_
+    def setup(
+        self, stage=None
+    ):  # [21-09-10 AG]: TODO shouldn't this tokenization happen in the prepare_data? since we're caching it it doesn't really matter, but still
+        if self.data_dir is None:
+            self.data_dir = default_data_path / self._name_
         if self.bpe:
             self.vocab = OpenAIVocab()
         else:
@@ -369,7 +381,9 @@ class WikiText2(SequenceDataset):
         self.vocab.count_file(self.data_dir / "test.txt")
 
     def _save_to_cache(self):
-        cache_path = self.data_dir / f"cache.pt" # TODO name could include vocab_kwargs to disambiguate
+        cache_path = (
+            self.data_dir / f"cache.pt"
+        )  # TODO name could include vocab_kwargs to disambiguate
         with distributed.sync_workers() as rank:
             if rank == 0:
                 try:
@@ -385,9 +399,7 @@ class WikiText2(SequenceDataset):
         cache_path = self.data_dir / f"cache.pt"
         if cache_path.exists():
             logging.info("Loading cached dataset...")
-            self.vocab, self.train, self.valid, self.test = torch.load(
-                cache_path
-            )
+            self.vocab, self.train, self.valid, self.test = torch.load(cache_path)
             return True
         else:
             return False
@@ -402,9 +414,11 @@ class WikiText2(SequenceDataset):
 
     # def val_dataloader(self, batch_size, **kwargs):
     def _eval_dataloader(self, dataset, eval=None, **loader_args):
-        if dataset is None: return None
+        if dataset is None:
+            return None
         # Make eval a list of dictionaries
-        if eval is None: eval = {}
+        if eval is None:
+            eval = {}
         if not utils.is_list(eval):
             eval = [eval]
         # Each eval setting overrides the train setting
@@ -414,7 +428,8 @@ class WikiText2(SequenceDataset):
                     eval_args[k] = loader_args[k]
             print("eval loader:", eval_args)
         loaders = [LMOrderedIterator(dataset, **eval_args) for eval_args in eval]
-        if len(loaders) == 1: return loaders[0]
+        if len(loaders) == 1:
+            return loaders[0]
         return loaders
 
     def val_dataloader(self, **kwargs):
@@ -433,9 +448,9 @@ class WikiText103(WikiText2):
 
 
 class PennTreeBank(WikiText2):
-
     _name_ = "ptb"
     vocab_kwargs = {"special": ["<eos>"], "lower_case": True}
+
 
 class EnWik8(WikiText2):
     _name_ = "enwik8"
@@ -445,7 +460,6 @@ class EnWik8(WikiText2):
 
 
 class Text8(EnWik8):
-
     _name_ = "text8"
 
 
@@ -503,7 +517,6 @@ class LM1B(WikiText2):
 
     def test_dataloader(self, *args, **kwargs):
         return LMShuffledIterator(self.test, *args, **kwargs)
-
 
 
 class Corpus(object):
@@ -574,9 +587,7 @@ class Corpus(object):
                 data_iter = LMOrderedIterator(self.train, *args, **kwargs)
             elif self.dataset == "lm1b":
                 kwargs["shuffle"] = True
-                data_iter = LMMultiFileIterator(
-                    self.train, self.vocab, *args, **kwargs
-                )
+                data_iter = LMMultiFileIterator(self.train, self.vocab, *args, **kwargs)
         elif split in ["valid", "test"]:
             data = self.valid if split == "valid" else self.test
             if self.dataset in ["ptb", "wt2", "wt103", "enwik8", "text8"]:

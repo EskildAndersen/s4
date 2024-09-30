@@ -23,7 +23,7 @@ class TorchVisionResnet(nn.Module):
         self.resnet.avgpool = nn.Identity()
 
     def forward(self, x, *args, **kwargs):
-        x = rearrange(x, 'b ... h -> b h ...')
+        x = rearrange(x, "b ... h -> b h ...")
         if x.size(1) == 1:
             x = x.repeat(1, 3, 1, 1)
         elif x.size(1) == 3:

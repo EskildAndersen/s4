@@ -1,12 +1,12 @@
 """Time series datasets, especially for medical time series."""
 
-
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 from src.dataloaders.base import default_data_path, SequenceDataset, deprecated
+
 
 class BIDMC(SequenceDataset):
     """BIDMC datasets for Respiratory Rate / Heart Rate / Oxygen Saturation regression"""
@@ -64,8 +64,8 @@ class BIDMC(SequenceDataset):
         split = "reshuffle" if self.reshuffle else "original"
         return f"BIDMC{self.target}_{split}"
 
-class EegDataset(SequenceDataset):
 
+class EegDataset(SequenceDataset):
     _name_ = "eegseizure"
 
     init_defaults = {
@@ -88,9 +88,11 @@ class EegDataset(SequenceDataset):
 
     def setup(self):
         import meerkat as mk
-        from meerkat.contrib.eeg import (build_stanford_eeg_dp,
-                                         build_streaming_stanford_eeg_dp,
-                                         build_tuh_eeg_dp)
+        from meerkat.contrib.eeg import (
+            build_stanford_eeg_dp,
+            build_streaming_stanford_eeg_dp,
+            build_tuh_eeg_dp,
+        )
         from torch.utils.data import WeightedRandomSampler
 
         assert self.sz_label_sensitivity <= self.clip_len
@@ -168,23 +170,16 @@ class EegDataset(SequenceDataset):
             self.d_input = 1900
         if self.ss_clip_len > 0:
             target_key = "ss_output"
-            self.d_output = 19*100 #int(19 * (200* self.ss_clip_len / 2))
+            self.d_output = 19 * 100  # int(19 * (200* self.ss_clip_len / 2))
             self.l_output = self.ss_clip_len
 
             # train_mask = np.logical_and(train_mask.data,(dp["target"]==1).data)
             # val_mask = np.logical_and(val_mask.data,(dp["target"]==1).data)
             # test_mask = np.logical_and(test_mask.data,(dp["target"]==1).data)
 
-        self.dataset_train = dp.lz[train_mask][
-            input_key, target_key, "age", "target"
-        ]
-        self.dataset_val = dp.lz[val_mask][
-            input_key, target_key, "age", "target"
-        ]
-        self.dataset_test = dp.lz[test_mask][
-            input_key, target_key, "age"
-        ]
-
+        self.dataset_train = dp.lz[train_mask][input_key, target_key, "age", "target"]
+        self.dataset_val = dp.lz[val_mask][input_key, target_key, "age", "target"]
+        self.dataset_test = dp.lz[test_mask][input_key, target_key, "age"]
 
         # define whats returned by datasets
         if self.gnn:
@@ -195,11 +190,13 @@ class EegDataset(SequenceDataset):
             )
             if self.ss_clip_len > 0:
                 lambda_fnc = lambda x: (
-                x[input_key][0],
-                torch.tensor(x[target_key][0]).to(torch.long),
-                torch.tensor(x[target_key][0]).to(torch.long), # decoder takes y as well
-                x[input_key][1],  # graph supports
-            )
+                    x[input_key][0],
+                    torch.tensor(x[target_key][0]).to(torch.long),
+                    torch.tensor(x[target_key][0]).to(
+                        torch.long
+                    ),  # decoder takes y as well
+                    x[input_key][1],  # graph supports
+                )
             if self.use_age:
                 lambda_fnc = lambda x: (
                     x[input_key][0],
@@ -313,8 +310,8 @@ class EegDataset(SequenceDataset):
                 **kwargs,
             )
 
-class PTBXL(SequenceDataset):
 
+class PTBXL(SequenceDataset):
     _name_ = "ptbxl"
 
     init_defaults = {
@@ -410,7 +407,6 @@ class PTBXL(SequenceDataset):
                 Y["target"] = Y.scp_codes.apply(aggregate_all_diagnostic)
 
         elif self.ctype in ["form", "rhythm"]:
-
             if self.ctype == "form":
                 agg_df = agg_df[agg_df.form == 1]
             else:
@@ -502,6 +498,7 @@ class PTBXL(SequenceDataset):
 
         self.collate_fn = None
 
+
 class IMU(SequenceDataset):
     """IMU (Inertial Measurement Units) dataset from an experimental study on Parkinson patients"""
 
@@ -565,4 +562,3 @@ class IMU(SequenceDataset):
     def __str__(self):
         split = "reshuffle" if self.reshuffle else "original"
         return f"IMU_{split}"
-

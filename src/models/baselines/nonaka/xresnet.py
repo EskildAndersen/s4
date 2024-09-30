@@ -360,6 +360,7 @@ class XResNet1d(nn.Sequential):
         y = super().forward(x.transpose(-1, -2))
         return y, None
 
+
 # xresnets
 def _xresnet1d(expansion, layers, **kwargs):
     return XResNet1d(ResBlock, expansion, layers, **kwargs)

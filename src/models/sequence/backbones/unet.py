@@ -13,10 +13,16 @@ from einops import rearrange, repeat, reduce
 
 import src.utils as utils
 from src.models.sequence.base import SequenceModule
-from src.models.sequence.modules.pool import DownPool, UpPool, up_registry, registry as down_registry
+from src.models.sequence.modules.pool import (
+    DownPool,
+    UpPool,
+    up_registry,
+    registry as down_registry,
+)
 from src.models.sequence.backbones.block import SequenceResidualBlock
 
 contract = torch.einsum
+
 
 class SequenceUNet(SequenceModule):
     """UNet backbone for 1-D sequence models.
@@ -30,7 +36,7 @@ class SequenceUNet(SequenceModule):
         d_model,
         n_layers,
         pool=[],
-        pool_mode='linear',
+        pool_mode="linear",
         expand=1,
         ff=2,
         cff=0,
@@ -53,22 +59,24 @@ class SequenceUNet(SequenceModule):
 
         # Layer arguments
         layer_cfg = layer.copy()
-        layer_cfg['dropout'] = dropout
-        layer_cfg['transposed'] = self.transposed
-        layer_cfg['initializer'] = initializer
+        layer_cfg["dropout"] = dropout
+        layer_cfg["transposed"] = self.transposed
+        layer_cfg["initializer"] = initializer
         print("layer config", layer_cfg)
 
-        center_layer_cfg = center_layer if center_layer is not None else layer_cfg.copy()
-        center_layer_cfg['dropout'] = dropout
-        center_layer_cfg['transposed'] = self.transposed
+        center_layer_cfg = (
+            center_layer if center_layer is not None else layer_cfg.copy()
+        )
+        center_layer_cfg["dropout"] = dropout
+        center_layer_cfg["transposed"] = self.transposed
 
         ff_cfg = {
-            '_name_': 'ffn',
-            'expand': ff,
-            'transposed': self.transposed,
-            'activation': 'gelu',
-            'initializer': initializer,
-            'dropout': dropout,
+            "_name_": "ffn",
+            "expand": ff,
+            "transposed": self.transposed,
+            "activation": "gelu",
+            "initializer": initializer,
+            "dropout": dropout,
         }
 
         def _residual(d, i, layer):
@@ -79,7 +87,7 @@ class SequenceUNet(SequenceModule):
                 dropout=dropres,
                 transposed=self.transposed,
                 layer=layer,
-                residual=residual if residual is not None else 'R',
+                residual=residual if residual is not None else "R",
                 norm=norm,
                 pool=None,
             )
@@ -88,32 +96,50 @@ class SequenceUNet(SequenceModule):
         d_layers = []
         for p in pool:
             for i in range(n_layers):
-                d_layers.append(_residual(H, i+1, layer_cfg))
-                if ff > 0: d_layers.append(_residual(H, i+1, ff_cfg))
+                d_layers.append(_residual(H, i + 1, layer_cfg))
+                if ff > 0:
+                    d_layers.append(_residual(H, i + 1, ff_cfg))
 
             # Add sequence downsampling and feature expanding
-            d_pool = utils.instantiate(down_registry, pool_mode, H, stride=p, expand=expand, transposed=self.transposed)
+            d_pool = utils.instantiate(
+                down_registry,
+                pool_mode,
+                H,
+                stride=p,
+                expand=expand,
+                transposed=self.transposed,
+            )
             d_layers.append(d_pool)
             H *= expand
         self.d_layers = nn.ModuleList(d_layers)
 
         # Center block
-        c_layers = [ ]
+        c_layers = []
         for i in range(n_layers):
-            c_layers.append(_residual(H, i+1, center_layer_cfg))
-            if cff > 0: c_layers.append(_residual(H, i+1, ff_cfg))
+            c_layers.append(_residual(H, i + 1, center_layer_cfg))
+            if cff > 0:
+                c_layers.append(_residual(H, i + 1, ff_cfg))
         self.c_layers = nn.ModuleList(c_layers)
 
         # Up blocks
         u_layers = []
         for p in pool[::-1]:
             H //= expand
-            u_pool = utils.instantiate(up_registry, pool_mode, H*expand, stride=p, expand=expand, causal=True, transposed=self.transposed)
+            u_pool = utils.instantiate(
+                up_registry,
+                pool_mode,
+                H * expand,
+                stride=p,
+                expand=expand,
+                causal=True,
+                transposed=self.transposed,
+            )
             u_layers.append(u_pool)
 
             for i in range(n_layers):
-                u_layers.append(_residual(H, i+1, layer_cfg))
-                if ff > 0: u_layers.append(_residual(H, i+1, ff_cfg))
+                u_layers.append(_residual(H, i + 1, layer_cfg))
+                if ff > 0:
+                    u_layers.append(_residual(H, i + 1, ff_cfg))
         self.u_layers = nn.ModuleList(u_layers)
 
         assert H == d_model
@@ -129,10 +155,11 @@ class SequenceUNet(SequenceModule):
         input: (batch, length, d_input)
         output: (batch, length, d_output)
         """
-        if self.transposed: x = x.transpose(1, 2)
+        if self.transposed:
+            x = x.transpose(1, 2)
 
         # Down blocks
-        outputs = [] # Store all layers for SequenceUNet structure
+        outputs = []  # Store all layers for SequenceUNet structure
         for layer in self.d_layers:
             outputs.append(x)
             x, _ = layer(x)
@@ -148,13 +175,14 @@ class SequenceUNet(SequenceModule):
             x = x + outputs.pop()
 
         # feature projection
-        if self.transposed: x = x.transpose(1, 2) # (batch, length, expand)
+        if self.transposed:
+            x = x.transpose(1, 2)  # (batch, length, expand)
         x = self.norm(x)
 
-        return x, None # required to return a state
+        return x, None  # required to return a state
 
     def default_state(self, *args, **kwargs):
-        """ x: (batch) """
+        """x: (batch)"""
         layers = list(self.d_layers) + list(self.c_layers) + list(self.u_layers)
         return [layer.default_state(*args, **kwargs) for layer in layers]
 
@@ -167,19 +195,20 @@ class SequenceUNet(SequenceModule):
         state = state[::-1]
 
         # Down blocks
-        outputs = [] # Store all layers for SequenceUNet structure
+        outputs = []  # Store all layers for SequenceUNet structure
         next_state = []
         for layer in self.d_layers:
             outputs.append(x)
             x, _next_state = layer.step(x, state=state.pop(), **kwargs)
             next_state.append(_next_state)
-            if x is None: break
+            if x is None:
+                break
 
         # Center block
         if x is None:
             # Skip computations since we've downsized
             skipped = len(self.d_layers) - len(outputs)
-            for _ in range(skipped+len(self.c_layers)+skipped):
+            for _ in range(skipped + len(self.c_layers) + skipped):
                 next_state.append(state.pop())
             u_layers = list(self.u_layers)[skipped:]
         else:

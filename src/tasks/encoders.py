@@ -15,6 +15,7 @@ import src.utils.config
 from src.models.sequence.backbones.block import SequenceResidualBlock
 from src.models.nn import Normalization
 
+
 class Encoder(nn.Module):
     """Encoder abstraction.
 
@@ -34,7 +35,6 @@ class Encoder(nn.Module):
         *args: other arguments to pass into the model backbone
         """
         return x, {}
-
 
 
 # Adapted from https://github.com/pytorch/examples/blob/master/word_language_model/model.py
@@ -102,7 +102,7 @@ class ClassEmbedding(Encoder):
 
 
 class Conv1DEncoder(Encoder):
-    def __init__(self, d_input, d_model, kernel_size=25, stride=1, padding='same'):
+    def __init__(self, d_input, d_model, kernel_size=25, stride=1, padding="same"):
         super().__init__()
         self.conv = nn.Conv1d(
             in_channels=d_input,
@@ -117,10 +117,11 @@ class Conv1DEncoder(Encoder):
         x = self.conv(x.transpose(1, 2)).transpose(1, 2)
         return x
 
+
 class LayerEncoder(Encoder):
     """Use an arbitary SequenceModule layer"""
 
-    def __init__(self, d_model, prenorm=False, norm='layer', layer=None):
+    def __init__(self, d_model, prenorm=False, norm="layer", layer=None):
         super().__init__()
 
         # Simple stack of blocks
@@ -129,13 +130,13 @@ class LayerEncoder(Encoder):
             d_input=d_model,
             prenorm=prenorm,
             layer=layer,
-            residual='R',
+            residual="R",
             norm=norm,
             pool=None,
         )
 
     def forward(self, x):
-        x, _ = self.layer(x) # Discard state
+        x, _ = self.layer(x)  # Discard state
         return x
 
 
@@ -146,47 +147,54 @@ class TimestampEmbeddingEncoder(Encoder):
     """
 
     cardinalities = {
-        'day': (1, 31),
-        'hour': (0, 23),
-        'minute': (0, 59),
-        'second': (0, 59),
-        'month': (1, 12),
-        'year': (1950, 2010), # (1800, 3000) used to be (1970, datetime.datetime.now().year + 1) but was not enough for all datasets in monash
-        'dayofweek': (0, 6),
-        'dayofyear': (1, 366),
-        'quarter': (1, 4),
-        'week': (1, 53),
-        'is_month_start': (0, 1),
-        'is_month_end': (0, 1),
-        'is_quarter_start': (0, 1),
-        'is_quarter_end': (0, 1),
-        'is_year_start': (0, 1),
-        'is_year_end': (0, 1),
-        'is_leap_year': (0, 1),
+        "day": (1, 31),
+        "hour": (0, 23),
+        "minute": (0, 59),
+        "second": (0, 59),
+        "month": (1, 12),
+        "year": (
+            1950,
+            2010,
+        ),  # (1800, 3000) used to be (1970, datetime.datetime.now().year + 1) but was not enough for all datasets in monash
+        "dayofweek": (0, 6),
+        "dayofyear": (1, 366),
+        "quarter": (1, 4),
+        "week": (1, 53),
+        "is_month_start": (0, 1),
+        "is_month_end": (0, 1),
+        "is_quarter_start": (0, 1),
+        "is_quarter_end": (0, 1),
+        "is_year_start": (0, 1),
+        "is_year_end": (0, 1),
+        "is_leap_year": (0, 1),
     }
 
     def __init__(self, d_model, table=False, features=None):
         super().__init__()
         self.table = table
-        self.ranges = {k: max_val - min_val + 2 for k, (min_val, max_val) in self.cardinalities.items()} # padding for null included
+        self.ranges = {
+            k: max_val - min_val + 2
+            for k, (min_val, max_val) in self.cardinalities.items()
+        }  # padding for null included
 
         if features is None:
             pass
         else:
-            self.cardinalities = {k: v for k, v in self.cardinalities.items() if k in features}
+            self.cardinalities = {
+                k: v for k, v in self.cardinalities.items() if k in features
+            }
 
         if table:
-            self.embedding = nn.ModuleDict({
-                attr: nn.Embedding(maxval - minval + 2, d_model, padding_idx=0)
-                for attr, (minval, maxval) in self.cardinalities.items()
-            })
+            self.embedding = nn.ModuleDict(
+                {
+                    attr: nn.Embedding(maxval - minval + 2, d_model, padding_idx=0)
+                    for attr, (minval, maxval) in self.cardinalities.items()
+                }
+            )
         else:
-            self.embedding = nn.ModuleDict({
-                attr: nn.Linear(1, d_model)
-                for attr in self.cardinalities
-            })
-
-
+            self.embedding = nn.ModuleDict(
+                {attr: nn.Linear(1, d_model) for attr in self.cardinalities}
+            )
 
     def forward(self, x, timestamps=None):
         for attr in timestamps:
@@ -196,10 +204,13 @@ class TimestampEmbeddingEncoder(Encoder):
             if self.table:
                 x = x + self.embedding[attr](timestamps[attr].to(torch.long))
             else:
-                x = x + self.embedding[attr]((2 * timestamps[attr] / self.ranges[attr] - 1).unsqueeze(-1))
+                x = x + self.embedding[attr](
+                    (2 * timestamps[attr] / self.ranges[attr] - 1).unsqueeze(-1)
+                )
 
-            #x = x + self.embedding(timestamps[attr].to(torch.float)).unsqueeze(1)
+            # x = x + self.embedding(timestamps[attr].to(torch.float)).unsqueeze(1)
         return x
+
 
 # TODO is this used anymore?
 class TSIndexEmbeddingEncoder(Encoder):
@@ -225,8 +236,18 @@ class TSIndexEmbeddingEncoder(Encoder):
             x = x + self.embedding(idxs.to(torch.long)).unsqueeze(1)
         else:
             # x = self.linear(torch.cat([x, self.embedding((2 * idxs / self.n_ts - 1)[:, None, None]).repeat((1, x.shape[1], 1))], axis=-1))
-            x = self.linear(torch.cat([x, ((2 * idxs / self.n_ts - 1)[:, None, None]).repeat((1, x.shape[1], 1))], axis=-1))
-        #x = x + self.embedding(idxs.unsqueeze(1).to(torch.float)).unsqueeze(1)
+            x = self.linear(
+                torch.cat(
+                    [
+                        x,
+                        ((2 * idxs / self.n_ts - 1)[:, None, None]).repeat(
+                            (1, x.shape[1], 1)
+                        ),
+                    ],
+                    axis=-1,
+                )
+            )
+        # x = x + self.embedding(idxs.unsqueeze(1).to(torch.float)).unsqueeze(1)
         return x
 
 
@@ -244,7 +265,9 @@ class TimeEncoder(Encoder):
         self.mask_embed = nn.Embedding(2, d_model)
 
     def forward(self, x, mark=None, mask=None):
-        assert mark is not None and mask is not None, "Extra arguments should be returned by collate function"
+        assert (
+            mark is not None and mask is not None
+        ), "Extra arguments should be returned by collate function"
         if self.timeenc == 0:
             assert mark.size(-1) == len(self.encoders)
             embeddings = [
@@ -256,6 +279,7 @@ class TimeEncoder(Encoder):
         mask_encode = self.mask_embed(mask.squeeze(-1))
         return x + time_encode + mask_encode  # (B, L, d_model)
 
+
 class EEGAgeEncoder(Encoder):
     def __init__(self, d_model):
         super().__init__()
@@ -265,11 +289,15 @@ class EEGAgeEncoder(Encoder):
         z = self.encoder(((age - 50.0) / 100.0).unsqueeze(1))
         return x + z.unsqueeze(1)
 
+
 class PackedEncoder(Encoder):
     def forward(self, x, len_batch=None):
         assert len_batch is not None
         x = nn.utils.rnn.pack_padded_sequence(
-            x, len_batch.cpu(), enforce_sorted=False, batch_first=True,
+            x,
+            len_batch.cpu(),
+            enforce_sorted=False,
+            batch_first=True,
         )
         return x
 
@@ -292,6 +320,7 @@ class Conv3DPatchEncoder(Encoder):
       - filter_sizes: tuple, with ft, fh, fw
       - max_len: int, max seq len
     """
+
     def __init__(self, d_emb, filter_sizes, pos_enc=False, max_len=2352):
         self.pos_enc = pos_enc
         ft, fh, fw = filter_sizes
@@ -299,7 +328,9 @@ class Conv3DPatchEncoder(Encoder):
         super().__init__()
         assert len(filter_sizes) == 3
 
-        self.encoder = nn.Conv3d(3, d_emb, kernel_size=(ft, fh, fw), stride=(ft, fh, fw))
+        self.encoder = nn.Conv3d(
+            3, d_emb, kernel_size=(ft, fh, fw), stride=(ft, fh, fw)
+        )
 
     def forward(self, x):
         """
@@ -310,10 +341,11 @@ class Conv3DPatchEncoder(Encoder):
         x = self.encoder(x)
         b, c, t, h, w = x.shape
 
-        x = x.reshape([b, c, t*h*w])  # flatten spatial / temporal dim
+        x = x.reshape([b, c, t * h * w])  # flatten spatial / temporal dim
         x = x.permute(0, 2, 1)  # permute the c and seq len for s4
 
         return x
+
 
 class Conv2DPatchEncoder(Encoder):
     """For encoding images into a sequence of patches.
@@ -333,7 +365,9 @@ class Conv2DPatchEncoder(Encoder):
         super().__init__()
         assert len(filter_sizes) == 2
 
-        self.encoder = nn.Conv2d(d_input, d_model, kernel_size=(fh, fw), stride=(fh, fw))
+        self.encoder = nn.Conv2d(
+            d_input, d_model, kernel_size=(fh, fw), stride=(fh, fw)
+        )
 
     def forward(self, x):
         """
@@ -341,13 +375,13 @@ class Conv2DPatchEncoder(Encoder):
         Returns tuple with x, with new shape = [b, seq_len, c_out]
         """
 
-        x = rearrange(x, 'b h w c -> b c h w')
+        x = rearrange(x, "b h w c -> b c h w")
         x = self.encoder(x)
-        x = rearrange(x, 'b c h w -> b (h w) c')
+        x = rearrange(x, "b c h w -> b (h w) c")
         return x
 
-class TextConditionalEncoder(Encoder):
 
+class TextConditionalEncoder(Encoder):
     def __init__(self, vocab_size, d_model, n_layers, layer, reversal=False):
         super().__init__()
         # d_model = 2 * d_model
@@ -356,18 +390,21 @@ class TextConditionalEncoder(Encoder):
         self.text_embedding = nn.Embedding(vocab_size, d_model)
 
         # Simple stack of blocks
-        self.text_encoder = nn.ModuleList([
-            SequenceResidualBlock(
-                d_input=d_model,
-                i_layer=i,
-                prenorm=True,
-                layer=layer,
-                residual='R',
-                norm='layer',
-                pool=None,
-                transposed=True,
-            ) for i in range(n_layers)
-        ])
+        self.text_encoder = nn.ModuleList(
+            [
+                SequenceResidualBlock(
+                    d_input=d_model,
+                    i_layer=i,
+                    prenorm=True,
+                    layer=layer,
+                    residual="R",
+                    norm="layer",
+                    pool=None,
+                    transposed=True,
+                )
+                for i in range(n_layers)
+            ]
+        )
 
         # self.output_linear = nn.Linear(d_model, d_model // 2)
 
@@ -378,10 +415,9 @@ class TextConditionalEncoder(Encoder):
         # lengths, tokens, text_lengths = args
         assert tokens is not None and text_lengths is not None
 
-
         # Calculate the text embedding
-        text_embedding = self.text_embedding(tokens) # (B, L, D)
-        text_embedding = text_embedding.transpose(1, 2) # (B, D, L)
+        text_embedding = self.text_embedding(tokens)  # (B, L, D)
+        text_embedding = text_embedding.transpose(1, 2)  # (B, D, L)
         for layer in self.text_encoder:
             text_embedding, _ = layer(text_embedding)
 
@@ -403,7 +439,6 @@ class TextConditionalEncoder(Encoder):
         x = x + text_embedding.unsqueeze(1)
 
         return x
-
 
 
 # For every type of encoder/decoder, specify:

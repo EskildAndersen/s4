@@ -1,4 +1,5 @@
 """Utils for the training loop. Adapted from https://github.com/HazyResearch/transformers/blob/master/src/utils/utils.py."""
+
 import logging
 import os
 import warnings
@@ -47,13 +48,23 @@ def get_logger(name=__name__, level=logging.INFO) -> logging.Logger:
 
     # this ensures all logging levels get marked with the rank zero decorator
     # otherwise logs would get multiplied for each GPU process in multi-GPU setup
-    for level in ("debug", "info", "warning", "error", "exception", "fatal", "critical"):
+    for level in (
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "exception",
+        "fatal",
+        "critical",
+    ):
         setattr(logger, level, rank_zero_only(getattr(logger, level)))
 
     return logger
 
 
-def process_config(config: DictConfig) -> DictConfig: # TODO because of filter_keys, this is no longer in place
+def process_config(
+    config: DictConfig,
+) -> DictConfig:  # TODO because of filter_keys, this is no longer in place
     """A couple of optional utilities, controlled by main config file:
     - disabling warnings
     - easier access to debug mode
@@ -64,11 +75,11 @@ def process_config(config: DictConfig) -> DictConfig: # TODO because of filter_k
     """
     log = get_logger()
 
-    OmegaConf.register_new_resolver('eval', eval)
+    OmegaConf.register_new_resolver("eval", eval)
 
     # Filter out keys that were used just for interpolation
     # config = dictconfig_filter_keys(config, lambda k: not k.startswith('__'))
-    config = omegaconf_filter_keys(config, lambda k: not k.startswith('__'))
+    config = omegaconf_filter_keys(config, lambda k: not k.startswith("__"))
 
     # enable adding new keys to config
     OmegaConf.set_struct(config, False)
@@ -83,7 +94,9 @@ def process_config(config: DictConfig) -> DictConfig: # TODO because of filter_k
         config.trainer.fast_dev_run = True
 
         # force debugger friendly configuration
-        log.info("Forcing debugger friendly configuration! <config.trainer.fast_dev_run=True>")
+        log.info(
+            "Forcing debugger friendly configuration! <config.trainer.fast_dev_run=True>"
+        )
         # Debuggers don't like GPUs or multiprocessing
         if config.trainer.get("gpus"):
             config.trainer.gpus = 0
@@ -96,6 +109,7 @@ def process_config(config: DictConfig) -> DictConfig: # TODO because of filter_k
     # OmegaConf.set_struct(config, True) # [21-09-17 AG] I need this for .pop(_name_) pattern among other things
 
     return config
+
 
 @rank_zero_only
 def print_config(
@@ -140,17 +154,24 @@ def print_config(
         with open("config_tree.txt", "w") as fp:
             rich.print(tree, file=fp)
 
+
 def log_optimizer(logger, optimizer, keys):
-    """ Log values of particular keys from the optimizer's param groups """
+    """Log values of particular keys from the optimizer's param groups"""
     keys = sorted(keys)
     for i, g in enumerate(optimizer.param_groups):
         group_hps = {k: g.get(k, None) for k in keys}
-        n_params = sum(p.numel() for p in g['params'])
-        logger.info(' | '.join([
-            f"Optimizer group {i}",
-            f"{len(g['params'])} tensors",
-            f"{n_params} parameters",
-        ] + [f"{k} {v}" for k, v in group_hps.items()]))
+        n_params = sum(p.numel() for p in g["params"])
+        logger.info(
+            " | ".join(
+                [
+                    f"Optimizer group {i}",
+                    f"{len(g['params'])} tensors",
+                    f"{n_params} parameters",
+                ]
+                + [f"{k} {v}" for k, v in group_hps.items()]
+            )
+        )
         # print(f"Optimizer group {i} | {len(g['params'])} tensors | lr {g['lr']} | wd {g.get('weight_decay', None)}")
+
 
 """Old code for resuming logic moved to tests/"""

@@ -6,10 +6,12 @@ import torch.nn.functional as F
 from sklearn.metrics import f1_score, roc_auc_score
 from functools import partial
 
+
 def _student_t_map(mu, sigma, nu):
     sigma = F.softplus(sigma)
     nu = 2.0 + F.softplus(nu)
     return mu.squeeze(axis=-1), sigma.squeeze(axis=-1), nu.squeeze(axis=-1)
+
 
 def student_t_loss(outs, y):
     mu, sigma, nu = outs[..., 0], outs[..., 1], outs[..., 2]
@@ -28,6 +30,7 @@ def student_t_loss(outs, y):
     ll = Z - nup1_half * torch.log1p(part1)
     return -ll.mean()
 
+
 def gaussian_ll_loss(outs, y):
     mu, sigma = outs[..., 0], outs[..., 1]
     y = y.squeeze(axis=-1)
@@ -38,6 +41,7 @@ def gaussian_ll_loss(outs, y):
         + 0.5 * torch.square((y - mu) / sigma)
     )
     return -ll.mean()
+
 
 def binary_cross_entropy(logits, y):
     # BCE loss requires squeezing last dimension of logits so it has the same shape as y
@@ -76,7 +80,9 @@ def accuracy_at_k(logits, y, k=1):
         # Mixup leads to this case: use argmax class
         y = y.argmax(dim=-1)
     y = y.view(-1)
-    return torch.topk(logits, k, dim=-1)[1].eq(y.unsqueeze(-1)).any(dim=-1).float().mean()
+    return (
+        torch.topk(logits, k, dim=-1)[1].eq(y.unsqueeze(-1)).any(dim=-1).float().mean()
+    )
 
 
 def f1_binary(logits, y):
@@ -136,9 +142,11 @@ def mse(outs, y, len_batch=None):
         y_masked = torch.masked_select(y, mask)
         return F.mse_loss(outs_masked, y_masked)
 
+
 def forecast_rmse(outs, y, len_batch=None):
     # TODO: generalize, currently for Monash dataset
-    return torch.sqrt(F.mse_loss(outs, y, reduction='none').mean(1)).mean()
+    return torch.sqrt(F.mse_loss(outs, y, reduction="none").mean(1)).mean()
+
 
 def mae(outs, y, len_batch=None):
     # assert outs.shape[:-1] == y.shape and outs.shape[-1] == 1
@@ -159,15 +167,19 @@ def mae(outs, y, len_batch=None):
 
 
 """Metrics that can depend on the loss."""
+
+
 def loss(x, y, loss_fn):
     """Metric that just returns the loss function.
 
-    This metric may be useful because the training loss may add extra regularization (e.g. weight decay implemented as L2 penalty), while adding this as a metric skips the additional losses """
+    This metric may be useful because the training loss may add extra regularization (e.g. weight decay implemented as L2 penalty), while adding this as a metric skips the additional losses"""
     return loss_fn(x, y)
+
 
 def bpb(x, y, loss_fn):
     """Bits per byte (for image density estimation, speech generation, char LM)."""
     return loss_fn(x, y) / math.log(2)
+
 
 def ppl(x, y, loss_fn):
     return torch.exp(loss_fn(x, y))
@@ -179,9 +191,9 @@ output_metric_fns = {
     "cross_entropy": cross_entropy,
     "binary_accuracy": binary_accuracy,
     "accuracy": accuracy,
-    'accuracy@3': partial(accuracy_at_k, k=3),
-    'accuracy@5': partial(accuracy_at_k, k=5),
-    'accuracy@10': partial(accuracy_at_k, k=10),
+    "accuracy@3": partial(accuracy_at_k, k=3),
+    "accuracy@5": partial(accuracy_at_k, k=5),
+    "accuracy@10": partial(accuracy_at_k, k=10),
     "eval_loss": loss,
     "mse": mse,
     "mae": mae,
@@ -201,7 +213,13 @@ try:
     from segmentation_models_pytorch.losses.focal import focal_loss_with_logits
 
     def iou_with_logits(pr, gt, eps=1e-7, threshold=None, ignore_channels=None):
-        return iou(pr.sigmoid(), gt, eps=eps, threshold=threshold, ignore_channels=ignore_channels)
+        return iou(
+            pr.sigmoid(),
+            gt,
+            eps=eps,
+            threshold=threshold,
+            ignore_channels=ignore_channels,
+        )
 
     output_metric_fns["iou"] = partial(iou, threshold=0.5)
     output_metric_fns["iou_with_logits"] = partial(iou_with_logits, threshold=0.5)
@@ -215,6 +233,3 @@ loss_metric_fns = {
     "ppl": ppl,
 }
 metric_fns = {**output_metric_fns, **loss_metric_fns}  # TODO py3.9
-
-
-

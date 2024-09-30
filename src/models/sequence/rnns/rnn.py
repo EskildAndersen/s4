@@ -8,13 +8,13 @@ from src.models.sequence import SequenceModule
 # [21-09-12 AG]: We previously set up a way to register RNNCell classes, which gives them a "local" name
 # To convert this mapping from name to constructor, we use the fact that the str representation of a constructor is "<class '_target_'>"
 # TODO should convert this to an explicit dictionary
-cell_registry = {
-    name: str(target)[8:-2]
-    for name, target in CellBase.registry.items()
-}
+cell_registry = {name: str(target)[8:-2] for name, target in CellBase.registry.items()}
+
 
 class RNN(SequenceModule):
-    def __init__(self, d_input, cell=None, return_output=True, transposed=False, dropout=0.0):
+    def __init__(
+        self, d_input, cell=None, return_output=True, transposed=False, dropout=0.0
+    ):
         """
         return_output: if False, only returns the state
         """
@@ -32,7 +32,8 @@ class RNN(SequenceModule):
         inputs : [n_batch, l_seq, d]
         """
 
-        if self.transposed: inputs = inputs.transpose(-1, -2)
+        if self.transposed:
+            inputs = inputs.transpose(-1, -2)
 
         # Automatically detect PackedSequence
         if isinstance(inputs, nn.utils.rnn.PackedSequence):
@@ -48,7 +49,8 @@ class RNN(SequenceModule):
             if self.return_output:
                 outputs.append(output)
         outputs = torch.stack(outputs, dim=-2) if self.return_output else None
-        if self.transposed and outputs is not None: outputs = outputs.transpose(-1, -2)
+        if self.transposed and outputs is not None:
+            outputs = outputs.transpose(-1, -2)
         return outputs, state
 
     def step(self, x, state):

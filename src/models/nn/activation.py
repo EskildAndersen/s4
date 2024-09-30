@@ -5,50 +5,55 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def Activation(activation=None, size=None, dim=-1):
-    if activation in [ None, 'id', 'identity', 'linear', 'none' ]:
+    if activation in [None, "id", "identity", "linear", "none"]:
         return nn.Identity()
-    elif activation == 'tanh':
+    elif activation == "tanh":
         return nn.Tanh()
-    elif activation == 'relu':
+    elif activation == "relu":
         return nn.ReLU()
-    elif activation == 'gelu':
+    elif activation == "gelu":
         return nn.GELU()
-    elif activation == 'elu':
+    elif activation == "elu":
         return nn.ELU()
-    elif activation in ['swish', 'silu']:
+    elif activation in ["swish", "silu"]:
         return nn.SiLU()
-    elif activation == 'glu':
+    elif activation == "glu":
         return nn.GLU(dim=dim)
-    elif activation.startswith('glu-'):
+    elif activation.startswith("glu-"):
         return GLU(dim=dim, activation=activation[4:])
-    elif activation == 'sigmoid':
+    elif activation == "sigmoid":
         return nn.Sigmoid()
-    elif activation == 'softplus':
+    elif activation == "softplus":
         return nn.Softplus()
-    elif activation == 'modrelu':
+    elif activation == "modrelu":
         return ModReLU(size)
-    elif activation in ['sqrelu', 'relu2']:
+    elif activation in ["sqrelu", "relu2"]:
         return SquaredReLU()
-    elif activation == 'laplace':
+    elif activation == "laplace":
         return Laplace()
     # Earlier experimentation with a LN in the middle of the block instead of activation
     # IIRC ConvNext does something like this?
     # elif activation == 'ln':
     #     return TransposedLN(dim)
     else:
-        raise NotImplementedError("hidden activation '{}' is not implemented".format(activation))
+        raise NotImplementedError(
+            "hidden activation '{}' is not implemented".format(activation)
+        )
+
 
 class GLU(nn.Module):
-    def __init__(self, dim=-1, activation='sigmoid'):
+    def __init__(self, dim=-1, activation="sigmoid"):
         super().__init__()
-        assert not activation.startswith('glu')
+        assert not activation.startswith("glu")
         self.dim = dim
         self.activation_fn = Activation(activation)
 
     def forward(self, x):
-        x, g = torch.split(x, x.size(self.dim)//2, dim=self.dim)
+        x, g = torch.split(x, x.size(self.dim) // 2, dim=self.dim)
         return x * self.activation_fn(g)
+
 
 class ModReLU(nn.Module):
     # Adapted from https://github.com/Lezcano/expRNN
@@ -77,9 +82,11 @@ class SquaredReLU(nn.Module):
         # return F.relu(x)**2
         return torch.square(F.relu(x))  # Could this be faster?
 
+
 def laplace(x, mu=0.707107, sigma=0.282095):
     x = (x - mu).div(sigma * math.sqrt(2.0))
     return 0.5 * (1.0 + torch.erf(x))
+
 
 class Laplace(nn.Module):
     def __init__(self, mu=0.707107, sigma=0.282095):
@@ -89,5 +96,3 @@ class Laplace(nn.Module):
 
     def forward(self, x):
         return laplace(x, mu=self.mu, sigma=self.sigma)
-
-

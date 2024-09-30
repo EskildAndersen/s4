@@ -4,7 +4,7 @@ Blizzard, Music, and Huckleberry Finn data feeders.
 """
 
 import numpy as np
-#import scikits.audiolab
+# import scikits.audiolab
 
 import random
 import time
@@ -15,11 +15,13 @@ import torch
 import sklearn
 from scipy.io import wavfile
 
+
 def normalize01(data):
-     """To range [0., 1.]"""
-     data -= np.min(data)
-     data /= np.max(data)
-     return data
+    """To range [0., 1.]"""
+    data -= np.min(data)
+    data /= np.max(data)
+    return data
+
 
 def mu_law_encode(audio, bits=8):
     """
@@ -38,6 +40,7 @@ def mu_law_encode(audio, bits=8):
     # Quantize signal to the specified number of levels.
     return ((encoded + 1) / 2 * mu + 0.5).long()
 
+
 def mu_law_decode(encoded, bits=8):
     """
     Perform inverse mu-law transformation.
@@ -47,15 +50,18 @@ def mu_law_decode(encoded, bits=8):
     x = (encoded.float() / mu) * 2 - 1
 
     # Invert the mu-law transformation
-    x = torch.sign(x) * ((1 + mu)**(torch.abs(x)) - 1) / mu
+    x = torch.sign(x) * ((1 + mu) ** (torch.abs(x)) - 1) / mu
     return x
+
 
 def minmax_scale(tensor):
     min_val = torch.amin(tensor, dim=(1, 2), keepdim=True)
     max_val = torch.amax(tensor, dim=(1, 2), keepdim=True)
     return (tensor - min_val) / (max_val - min_val + 1e-6)
 
+
 EPSILON = 1e-2
+
 
 def linear_quantize(samples, q_levels):
     samples = samples.clone()
@@ -66,11 +72,14 @@ def linear_quantize(samples, q_levels):
     samples += EPSILON / 2
     return samples.long()
 
+
 def linear_dequantize(samples, q_levels):
     return samples.float() / (q_levels / 2) - 1
 
+
 def q_zero(q_levels):
     return q_levels // 2
+
 
 ITEM_LIST = [
     "BeethovenPianoSonataNo.1",
@@ -107,47 +116,59 @@ ITEM_LIST = [
     "BeethovenPianoSonataNo.32",
 ]
 
+
 def download_all_data(path):
-    print('Downloading data to ' + path)
+    print("Downloading data to " + path)
     if not os.path.exists(path):
-        os.system('mkdir ' + path)
+        os.system("mkdir " + path)
     for item in ITEM_LIST:
-        os.system("wget -r -H -nc -nH --cut-dir=1 -A .ogg -R *_vbr.mp3 -e robots=off -P " + path + " -l1 'http://archive.org/download/" + item + "'")
-        os.system("mv " + os.path.join(path, item, '*.ogg') + " " + path)
+        os.system(
+            "wget -r -H -nc -nH --cut-dir=1 -A .ogg -R *_vbr.mp3 -e robots=off -P "
+            + path
+            + " -l1 'http://archive.org/download/"
+            + item
+            + "'"
+        )
+        os.system("mv " + os.path.join(path, item, "*.ogg") + " " + path)
         os.system("rm -rf " + os.path.join(path, item))
     for f in os.listdir(path):
         filepath = os.path.join(path, f)
-        os.system("ffmpeg -y -i " + filepath + " -ar 16000 -ac 1 " + filepath[:-4] + ".wav")
+        os.system(
+            "ffmpeg -y -i " + filepath + " -ar 16000 -ac 1 " + filepath[:-4] + ".wav"
+        )
         os.system("rm " + filepath)
-    print('Data download done')
+    print("Data download done")
 
-class _Music():
+
+class _Music:
     def __init__(
-            self,
-            path,
-            sample_len = 1,  # in seconds
-            sample_rate = 16000,
-            train_percentage = 0.9,
-            discrete_input=False,
-            samplernn_proc=True,
-        ):
+        self,
+        path,
+        sample_len=1,  # in seconds
+        sample_rate=16000,
+        train_percentage=0.9,
+        discrete_input=False,
+        samplernn_proc=True,
+    ):
         self.sample_len = sample_len
         self.sample_rate = sample_rate
         self.discrete_input = discrete_input
         self.samplernn_proc = samplernn_proc
 
-        self.music_data_path = os.path.join(path, 'music_data')
+        self.music_data_path = os.path.join(path, "music_data")
         if not os.path.exists(self.music_data_path):
             download_all_data(self.music_data_path)
 
         self.all_data = self.get_all_data()
         self.tensor = self.build_slices(self.all_data)
         self.train, self.val, self.test = self.split_data(self.tensor, train_percentage)
-        self.train_X, self.val_X, self.test_X, self.train_y, self.val_y, self.test_y = self.make_x_y(self.train, self.val, self.test)
-
+        self.train_X, self.val_X, self.test_X, self.train_y, self.val_y, self.test_y = (
+            self.make_x_y(self.train, self.val, self.test)
+        )
 
     def get_all_data(self):
         from librosa.core import load
+
         # TODO: There are going to be boundary errors here!
         all_data = np.array([])
         for f in os.listdir(self.music_data_path):
@@ -169,7 +190,9 @@ class _Music():
 
         truncated_len = len(data) - len(data) % num_samples_per_slice
 
-        return torch.tensor(data[:truncated_len].reshape(-1, num_samples_per_slice), dtype=torch.float32)
+        return torch.tensor(
+            data[:truncated_len].reshape(-1, num_samples_per_slice), dtype=torch.float32
+        )
 
         # tensor = torch.zeros([len(data) // num_samples_per_slice, num_samples_per_slice], dtype=torch.float32)
         # for i in range(len(data) // num_samples_per_slice):
@@ -178,16 +201,10 @@ class _Music():
 
     def split_data(self, tensor, train_percentage):
         train, test = sklearn.model_selection.train_test_split(
-                tensor,
-                train_size=train_percentage,
-                random_state=0,
-                shuffle=True
+            tensor, train_size=train_percentage, random_state=0, shuffle=True
         )
         val, test = sklearn.model_selection.train_test_split(
-                test,
-                train_size=0.5,
-                random_state=0,
-                shuffle=True
+            test, train_size=0.5, random_state=0, shuffle=True
         )
         train = torch.swapaxes(train.unsqueeze(1).squeeze(-1), 1, 2)
         val = torch.swapaxes(val.unsqueeze(1).squeeze(-1), 1, 2)
@@ -195,36 +212,55 @@ class _Music():
         return train, val, test
 
     def make_x_y(self, train, val, test):
-
         if not self.samplernn_proc:
-            train_y, val_y, test_y = mu_law_encode(train), mu_law_encode(val), mu_law_encode(test)
+            train_y, val_y, test_y = (
+                mu_law_encode(train),
+                mu_law_encode(val),
+                mu_law_encode(test),
+            )
             if not self.discrete_input:
-                train_X, val_X, test_X = torch.roll(mu_law_decode(train_y), 1, 1), torch.roll(mu_law_decode(val_y), 1, 1), torch.roll(mu_law_decode(test_y), 1, 1)
+                train_X, val_X, test_X = (
+                    torch.roll(mu_law_decode(train_y), 1, 1),
+                    torch.roll(mu_law_decode(val_y), 1, 1),
+                    torch.roll(mu_law_decode(test_y), 1, 1),
+                )
                 train_X[:, 0, :], val_X[:, 0, :], test_X[:, 0, :] = 0, 0, 0
             else:
-                train_X, val_X, test_X = torch.roll(train_y, 1, 1), torch.roll(val_y, 1, 1), torch.roll(test_y, 1, 1)
+                train_X, val_X, test_X = (
+                    torch.roll(train_y, 1, 1),
+                    torch.roll(val_y, 1, 1),
+                    torch.roll(test_y, 1, 1),
+                )
                 train_X[:, 0, :], val_X[:, 0, :], test_X[:, 0, :] = 128, 128, 128
         else:
-            train_y, val_y, test_y = linear_quantize(train, 256), linear_quantize(val, 256), linear_quantize(test, 256)
+            train_y, val_y, test_y = (
+                linear_quantize(train, 256),
+                linear_quantize(val, 256),
+                linear_quantize(test, 256),
+            )
             # train_y, val_y, test_y = mu_law_encode(train), mu_law_encode(val), mu_law_encode(test)
             if not self.discrete_input:
                 raise NotImplementedError
             else:
-                train_X, val_X, test_X = torch.roll(train_y, 1, 1), torch.roll(val_y, 1, 1), torch.roll(test_y, 1, 1)
+                train_X, val_X, test_X = (
+                    torch.roll(train_y, 1, 1),
+                    torch.roll(val_y, 1, 1),
+                    torch.roll(test_y, 1, 1),
+                )
                 train_X[:, 0, :], val_X[:, 0, :], test_X[:, 0, :] = 128, 128, 128
 
         return train_X, val_X, test_X, train_y, val_y, test_y
 
     def get_data(self, partition):
-        if partition == 'train':
+        if partition == "train":
             return MusicTensorDataset(self.train_X, self.train_y)
-        elif partition == 'val':
+        elif partition == "val":
             return MusicTensorDataset(self.val_X, self.val_y)
-        elif partition == 'test':
+        elif partition == "test":
             return MusicTensorDataset(self.test_X, self.test_y)
 
-class MusicTensorDataset(torch.utils.data.TensorDataset):
 
+class MusicTensorDataset(torch.utils.data.TensorDataset):
     def __getitem__(self, index):
         data = self.tensors[0][index]
         target = self.tensors[1][index]
@@ -241,4 +277,3 @@ class MusicTensorDataset(torch.utils.data.TensorDataset):
         #     if (data[1:] - data[1]).abs().sum() < 1e-5:
         #         return self.__getitem__(np.random.randint(0, len(self.tensors[0])))
         #     return data.squeeze(-1), target
-

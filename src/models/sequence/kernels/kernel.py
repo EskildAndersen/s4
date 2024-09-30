@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 import src.utils.train
+
 log = src.utils.train.get_logger(__name__)
 
 
@@ -117,8 +118,10 @@ class Kernel(nn.Module):
             self.register_parameter(name, nn.Parameter(tensor))
 
             optim = {}
-            if lr is not None: optim["lr"] = lr
-            if wd is not None: optim["weight_decay"] = wd
+            if lr is not None:
+                optim["lr"] = lr
+            if wd is not None:
+                optim["weight_decay"] = wd
             setattr(getattr(self, name), "_optim", optim)
 
     def _setup_step(self, **kwargs):
@@ -151,6 +154,7 @@ class Kernel(nn.Module):
         """Same as d_state, only needed for niche codepaths involving recurrent state."""
         raise NotImplementedError
 
+
 class ConvKernel(Kernel):
     """Baseline implemented as a free convolution kernel."""
 
@@ -158,12 +162,13 @@ class ConvKernel(Kernel):
         super().__init__(**kwargs)
         assert self.L is not None
 
-        kernel = torch.randn(self.channels, self.H, self.L) / (self.H*self.L)**0.5
+        kernel = torch.randn(self.channels, self.H, self.L) / (self.H * self.L) ** 0.5
         # Register parameters
-        self.register("kernel", kernel, self.lr_dict['K'], self.wd_dict['K'])
+        self.register("kernel", kernel, self.lr_dict["K"], self.wd_dict["K"])
 
     def forward(self, state=None, rate=1.0, L=None):
         return self.kernel, None
+
 
 class EMAKernel(Kernel):
     """Translation of Mega's MultiHeadEMA.
@@ -206,9 +211,9 @@ class EMAKernel(Kernel):
         delta = torch.Tensor(self.H, 1 if dt_tie else N, 1)
         alpha = torch.Tensor(self.H, N, 1)
         beta = torch.Tensor(self.H, N, 1)
-        self.register("delta", delta, self.lr_dict['dt'], self.wd_dict['dt'])
-        self.register("alpha", alpha, self.lr_dict['dt'], self.wd_dict['dt'])
-        self.register("beta", beta, self.lr_dict['dt'], self.wd_dict['dt'])
+        self.register("delta", delta, self.lr_dict["dt"], self.wd_dict["dt"])
+        self.register("alpha", alpha, self.lr_dict["dt"], self.wd_dict["dt"])
+        self.register("beta", beta, self.lr_dict["dt"], self.wd_dict["dt"])
         self.gamma = nn.Parameter(torch.Tensor(H_C, N))
         # D skip connection handled by outside class
         # self.omega = nn.Parameter(torch.Tensor(H))
@@ -228,7 +233,7 @@ class EMAKernel(Kernel):
             nn.init.normal_(self.gamma, mean=0.0, std=1.0)
             # nn.init.normal_(self.omega, mean=0.0, std=1.0)
 
-    def coeffs(self): # Same as discretize
+    def coeffs(self):  # Same as discretize
         p = torch.sigmoid(self.delta)  # (H N 1)
         alpha = torch.sigmoid(self.alpha)
         q = 1.0 - p * alpha
@@ -240,11 +245,11 @@ class EMAKernel(Kernel):
         vander = torch.arange(L).to(p).view(1, 1, L) * torch.log(q)  # (H N L)
         kernel = (p * self.beta) * torch.exp(vander)
         if self.efficient_bidirectional:
-            C = rearrange(self.gamma * self.scale, '(c h) n -> c h n', c=self.channels)
-            kernel = torch.einsum('dnl,cdn->cdl', kernel, C)
+            C = rearrange(self.gamma * self.scale, "(c h) n -> c h n", c=self.channels)
+            kernel = torch.einsum("dnl,cdn->cdl", kernel, C)
         else:
-            kernel = torch.einsum('dnl,dn->dl', kernel, self.gamma * self.scale)
-            kernel = rearrange(kernel, '(c h) l -> c h l', c=self.channels)
+            kernel = torch.einsum("dnl,dn->dl", kernel, self.gamma * self.scale)
+            kernel = rearrange(kernel, "(c h) l -> c h l", c=self.channels)
 
         kernel = kernel[..., :L]
         return kernel, None

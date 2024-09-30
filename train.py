@@ -30,6 +30,7 @@ log = src.utils.train.get_logger(__name__)
 
 # Turn on TensorFloat32 (speeds up large model training substantially)
 import torch.backends
+
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
@@ -67,7 +68,6 @@ def rank_zero_experiment(fn: Callable) -> Callable:
 
 
 class CustomWandbLogger(WandbLogger):
-
     def __init__(self, *args, **kwargs):
         """Modified logger that insists on a wandb.init() call and catches wandb's error if thrown."""
 
@@ -113,7 +113,9 @@ class CustomWandbLogger(WandbLogger):
                 # define default x-axis
                 if getattr(self._experiment, "define_metric", None):
                     self._experiment.define_metric("trainer/global_step")
-                    self._experiment.define_metric("*", step_metric="trainer/global_step", step_sync=True)
+                    self._experiment.define_metric(
+                        "*", step_metric="trainer/global_step", step_sync=True
+                    )
 
         return self._experiment
 
@@ -167,9 +169,9 @@ class SequenceLightningModule(pl.LightningModule):
 
         # Instantiate model
         self.model = utils.instantiate(registry.model, self.hparams.model)
-        if (name := self.hparams.train.post_init_hook['_name_']) is not None:
+        if (name := self.hparams.train.post_init_hook["_name_"]) is not None:
             kwargs = self.hparams.train.post_init_hook.copy()
-            del kwargs['_name_']
+            del kwargs["_name_"]
             for module in self.modules():
                 if hasattr(module, name):
                     getattr(module, name)(**kwargs)
@@ -192,7 +194,7 @@ class SequenceLightningModule(pl.LightningModule):
         self.decoder = U.PassthroughSequential(decoder, self.task.decoder)
         self.loss = self.task.loss
         self.loss_val = self.task.loss
-        if hasattr(self.task, 'loss_val'):
+        if hasattr(self.task, "loss_val"):
             self.loss_val = self.task.loss_val
         self.metrics = self.task.metrics
 
@@ -200,7 +202,7 @@ class SequenceLightningModule(pl.LightningModule):
         self._initialize_state()
 
     def load_state_dict(self, state_dict, strict=True):
-        if self.hparams.train.pretrained_model_state_hook['_name_'] is not None:
+        if self.hparams.train.pretrained_model_state_hook["_name_"] is not None:
             model_state_hook = utils.instantiate(
                 registry.model_state_hook,
                 self.hparams.train.pretrained_model_state_hook.copy(),
@@ -215,7 +217,14 @@ class SequenceLightningModule(pl.LightningModule):
         return super().load_state_dict(state_dict, strict=strict)
 
     def _check_config(self):
-        assert self.hparams.train.state.mode in [None, "none", "null", "reset", "bptt", "tbptt"]
+        assert self.hparams.train.state.mode in [
+            None,
+            "none",
+            "null",
+            "reset",
+            "bptt",
+            "tbptt",
+        ]
         assert (
             (n := self.hparams.train.state.n_context) is None
             or isinstance(n, int)
@@ -258,7 +267,7 @@ class SequenceLightningModule(pl.LightningModule):
         n_context = self.hparams.train.state.get(key)
 
         # Don't need to do anything if 0 context steps. Make sure there is no state
-        if n_context == 0 and self.hparams.train.state.mode not in ['tbptt']:
+        if n_context == 0 and self.hparams.train.state.mode not in ["tbptt"]:
             self._initialize_state()
             return
 
@@ -277,7 +286,7 @@ class SequenceLightningModule(pl.LightningModule):
             self._memory_chunks.append(batch)
             self._memory_chunks = self._memory_chunks[-n_context:]
 
-        elif self.hparams.train.state.mode == 'tbptt':
+        elif self.hparams.train.state.mode == "tbptt":
             _, _, z = batch
             reset = z["reset"]
             if reset:
@@ -291,21 +300,27 @@ class SequenceLightningModule(pl.LightningModule):
     def forward(self, batch):
         """Passes a batch through the encoder, backbone, and decoder"""
         # z holds arguments such as sequence length
-        x, y, *z = batch # z holds extra dataloader info such as resolution
+        x, y, *z = batch  # z holds extra dataloader info such as resolution
         if len(z) == 0:
             z = {}
         else:
-            assert len(z) == 1 and isinstance(z[0], dict), "Dataloader must return dictionary of extra arguments"
+            assert len(z) == 1 and isinstance(
+                z[0], dict
+            ), "Dataloader must return dictionary of extra arguments"
             z = z[0]
 
-        x, w = self.encoder(x, **z) # w can model-specific constructions such as key_padding_mask for transformers or state for RNNs
+        x, w = self.encoder(
+            x, **z
+        )  # w can model-specific constructions such as key_padding_mask for transformers or state for RNNs
         x, state = self.model(x, **w, state=self._state)
         self._state = state
         x, w = self.decoder(x, state=state, **z)
         return x, y, w
 
     def step(self, x_t):
-        x_t, *_ = self.encoder(x_t) # Potential edge case for encoders that expect (B, L, H)?
+        x_t, *_ = self.encoder(
+            x_t
+        )  # Potential edge case for encoders that expect (B, L, H)?
         x_t, state = self.model.step(x_t, state=self._state)
         self._state = state
         # x_t = x_t[:, None, ...] # Dummy length
@@ -315,13 +330,12 @@ class SequenceLightningModule(pl.LightningModule):
         return x_t
 
     def _shared_step(self, batch, batch_idx, prefix="train"):
-
         self._process_state(batch, batch_idx, train=(prefix == "train"))
 
         x, y, w = self.forward(batch)
 
         # Loss
-        if prefix == 'train':
+        if prefix == "train":
             loss = self.loss(x, y, **w)
         else:
             loss = self.loss_val(x, y, **w)
@@ -454,15 +468,15 @@ class SequenceLightningModule(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-
         # Set zero weight decay for some params
-        if 'optimizer_param_grouping' in self.hparams.train:
-            add_optimizer_hooks(self.model, **self.hparams.train.optimizer_param_grouping)
+        if "optimizer_param_grouping" in self.hparams.train:
+            add_optimizer_hooks(
+                self.model, **self.hparams.train.optimizer_param_grouping
+            )
 
         # Normal parameters
         all_params = list(self.parameters())
         params = [p for p in all_params if not hasattr(p, "_optim")]
-
 
         # Construct optimizer, add EMA if necessary
         if self.hparams.train.ema > 0.0:
@@ -474,7 +488,9 @@ class SequenceLightningModule(pl.LightningModule):
                 polyak=self.hparams.train.ema,
             )
         else:
-            optimizer = utils.instantiate(registry.optimizer, self.hparams.optimizer, params)
+            optimizer = utils.instantiate(
+                registry.optimizer, self.hparams.optimizer, params
+            )
 
         del self.hparams.optimizer._name_
 
@@ -482,7 +498,8 @@ class SequenceLightningModule(pl.LightningModule):
         hps = [getattr(p, "_optim") for p in all_params if hasattr(p, "_optim")]
         hps = [
             # dict(s) for s in set(frozenset(hp.items()) for hp in hps)
-            dict(s) for s in sorted(list(dict.fromkeys(frozenset(hp.items()) for hp in hps)))
+            dict(s)
+            for s in sorted(list(dict.fromkeys(frozenset(hp.items()) for hp in hps)))
             # dict(s) for s in dict.fromkeys(frozenset(hp.items()) for hp in hps)
         ]  # Unique dicts
         print("Hyperparameter groups", hps)
@@ -494,10 +511,10 @@ class SequenceLightningModule(pl.LightningModule):
 
         ### Layer Decay ###
 
-        if self.hparams.train.layer_decay['_name_'] is not None:
+        if self.hparams.train.layer_decay["_name_"] is not None:
             get_num_layer = utils.instantiate(
                 registry.layer_decay,
-                self.hparams.train.layer_decay['_name_'],
+                self.hparams.train.layer_decay["_name_"],
                 partial=True,
             )
 
@@ -511,17 +528,20 @@ class SequenceLightningModule(pl.LightningModule):
                 # Add to layer wise group
                 if layer_id not in layer_wise_groups:
                     layer_wise_groups[layer_id] = {
-                        'params': [],
-                        'lr': None,
-                        'weight_decay': self.hparams.optimizer.weight_decay
+                        "params": [],
+                        "lr": None,
+                        "weight_decay": self.hparams.optimizer.weight_decay,
                     }
-                layer_wise_groups[layer_id]['params'].append(p)
+                layer_wise_groups[layer_id]["params"].append(p)
 
-                if layer_id > num_max_layers: num_max_layers = layer_id
+                if layer_id > num_max_layers:
+                    num_max_layers = layer_id
 
             # Update lr for each layer
             for layer_id, group in layer_wise_groups.items():
-                group['lr'] = self.hparams.optimizer.lr * (self.hparams.train.layer_decay.decay ** (num_max_layers - layer_id))
+                group["lr"] = self.hparams.optimizer.lr * (
+                    self.hparams.train.layer_decay.decay ** (num_max_layers - layer_id)
+                )
 
             # Reset the torch optimizer's param groups
             optimizer.param_groups = []
@@ -553,8 +573,8 @@ class SequenceLightningModule(pl.LightningModule):
         # Print stats in a try block since some dataloaders might not have a length?
         try:
             log.info(
-                f"Loaded 'train' dataloader:".ljust(30) +
-                f"{len(train_loader.dataset):7} examples | {len(train_loader):6} steps"
+                f"Loaded 'train' dataloader:".ljust(30)
+                + f"{len(train_loader.dataset):7} examples | {len(train_loader):6} steps"
             )
         except:
             pass
@@ -604,8 +624,8 @@ class SequenceLightningModule(pl.LightningModule):
         try:
             for name, loader in zip(val_loader_names, val_loaders):
                 log.info(
-                    f"Loaded '{name}' dataloader:".ljust(30) +
-                    f"{len(loader.dataset):7} examples | {len(loader):6} steps"
+                    f"Loaded '{name}' dataloader:".ljust(30)
+                    + f"{len(loader.dataset):7} examples | {len(loader):6} steps"
                 )
         except:
             pass
@@ -619,6 +639,7 @@ class SequenceLightningModule(pl.LightningModule):
 
 
 ### pytorch-lightning utils and entrypoint ###
+
 
 def create_trainer(config):
     callbacks: List[pl.Callback] = []
@@ -639,7 +660,8 @@ def create_trainer(config):
     # Lightning callbacks
     if "callbacks" in config:
         for _name_, callback in config.callbacks.items():
-            if callback is None: continue
+            if callback is None:
+                continue
             if config.get("wandb") is None and _name_ in ["learning_rate_monitor"]:
                 continue
             log.info(f"Instantiating callback <{registry.callbacks[_name_]}>")
@@ -652,9 +674,8 @@ def create_trainer(config):
         profiler = hydra.utils.instantiate(config.trainer.profiler)
         config.trainer.pop("profiler")
 
-
     # Configure ddp automatically
-    if config.trainer.accelerator == 'gpu' and config.trainer.devices > 1:
+    if config.trainer.accelerator == "gpu" and config.trainer.devices > 1:
         print("ddp automatically configured, more than 1 gpu used!")
         config.trainer.strategy = "ddp"
 
@@ -720,8 +741,8 @@ def train(config):
             model.load_state_dict(pretrained_dict)
         if config.train.get("pretrained_freeze_encoder", False):
             for name, param in model.named_parameters():
-                if not("decoder" in name): param.requires_grad = False
-
+                if not ("decoder" in name):
+                    param.requires_grad = False
 
     # Run initial validation epoch (useful for debugging, finetuning)
     if config.train.validate_at_start:
@@ -736,13 +757,14 @@ def train(config):
         trainer.test(model)
 
 
-
 def preemption_setup(config):
     if config.tolerance.id is None:
         return config
 
     # Create path ./logdir/id/ to store information for resumption
-    resume_dir = os.path.join(get_original_cwd(), config.tolerance.logdir, str(config.tolerance.id))
+    resume_dir = os.path.join(
+        get_original_cwd(), config.tolerance.logdir, str(config.tolerance.id)
+    )
 
     if os.path.exists(resume_dir):
         print(f"Resuming from {resume_dir}")
@@ -754,7 +776,7 @@ def preemption_setup(config):
         # Look at the previous runs in reverse order
         checkpoint_path = None
         for hydra_path in reversed(hydra_paths):
-            hydra_path = hydra_path.rstrip('\n')
+            hydra_path = hydra_path.rstrip("\n")
 
             # Get the paths to the last.ckpt and last_.ckpt files
             last_path = os.path.join(hydra_path, "checkpoints", "last.ckpt")
@@ -794,9 +816,13 @@ def preemption_setup(config):
             print("\tNo suitable checkpoint found, starting from scratch")
 
         # Set wandb run id to resume
-        if os.path.exists(os.path.join(hydra_path, 'wandb')):
-            run_info = [e for e in os.listdir(os.path.join(hydra_path, 'wandb')) if e.startswith('run-')][0]
-            run_id = run_info.split('-')[-1]
+        if os.path.exists(os.path.join(hydra_path, "wandb")):
+            run_info = [
+                e
+                for e in os.listdir(os.path.join(hydra_path, "wandb"))
+                if e.startswith("run-")
+            ][0]
+            run_id = run_info.split("-")[-1]
             try:
                 config.wandb.id = run_id
             except AttributeError:
@@ -805,15 +831,14 @@ def preemption_setup(config):
     os.makedirs(resume_dir, exist_ok=True)
 
     # Store path to Hydra output folder
-    with open(os.path.join(resume_dir, 'hydra.txt'), 'a') as f:
-        f.write(os.getcwd() + '\n')
+    with open(os.path.join(resume_dir, "hydra.txt"), "a") as f:
+        f.write(os.getcwd() + "\n")
 
     return config
 
 
 @hydra.main(config_path="configs", config_name="config.yaml")
 def main(config: OmegaConf):
-
     # Process config:
     # - register evaluation resolver
     # - filter out keys used only for interpolation
